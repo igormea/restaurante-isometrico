@@ -3,9 +3,11 @@ import { Game } from './core/game.js';
 import { LocalSaveService } from './core/save.js';
 import { Renderer } from './engine/renderer.js';
 import { setupInput } from './engine/input.js';
-import { screenToIso, camera, isoToWorld } from './engine/iso.js';
+import { screenToIso, camera } from './engine/iso.js';
 import { UI } from './ui/ui.js';
-import { itemById } from './config/items.js';
+import { ROLES, LEVELS } from './config/staff.js';
+import { CUISINES } from './config/recipes.js';
+import { COSTS } from './config/economy.js';
 
 async function boot() {
   const game = new Game(new LocalSaveService());
@@ -26,7 +28,7 @@ async function boot() {
 
   setupInput(canvas, {
     onHover(sx, sy) { renderer.hover = toTile(sx, sy); },
-    onDrag(sx, sy, phase) {
+    onDrag(sx, sy) {
       if (game.mode !== 'paint') return false;
       const t = toTile(sx, sy);
       game.paintAt(t.x, t.y);
@@ -36,21 +38,30 @@ async function boot() {
       const t = toTile(sx, sy);
       renderer.hover = t;
       if (game.mode === 'place') { game.placeAt(t.x, t.y); return; }
-      if (game.mode === 'paint') { return; }
+      if (game.mode === 'paint') return;
       const w = toWorld(sx, sy);
       const obj = renderer.objectAtWorld(w.x, w.y);
       if (game.mode === 'edit') { if (obj) game.pickUp(obj); return; }
-      if (!obj) return;
-      const kind = itemById(obj.item).kind;
-      if (kind === 'stove') game.clickStove(obj);
-      else if (kind === 'counter') {
-        if (obj.data.recipe && obj.data.servings > 0) game.toast(`Balcão: ${obj.data.servings} porções prontas para servir`);
-        else game.toast('Balcão vazio — toque num prato pronto no fogão para trazer até aqui.');
+      const sv = game.service;
+      const person = renderer.personAtWorld(w.x, w.y);
+      if (person && person.member && sv.click(null, person.member)) return;
+      if (person && person.agent) {
+        const e = person.agent.emp;
+        const extra = e.role === 'cozinheiro' ? ` · ${CUISINES[e.specialty].icon} ${CUISINES[e.specialty].name}` : '';
+        game.toast(`${ROLES[e.role].icon} ${e.name} · ${ROLES[e.role].name} ${LEVELS[e.level].name.toLowerCase()}${extra}`);
+        return;
       }
+      const dirt = renderer.dirtAtWorld(w.x, w.y);
+      if (dirt && !dirt._by && !obj) {
+        game.state.dirt = game.state.dirt.filter((d) => d !== dirt);
+        game.state.month.water += COSTS.waterPerClean;
+        game.toast('🧽 Chão limpo!');
+        return;
+      }
+      if (obj) sv.click(obj, null);
     },
   });
 
-  // salva quando a pessoa sai da aba
   document.addEventListener('visibilitychange', () => { if (document.hidden) game.save(); });
   addEventListener('pagehide', () => game.save());
 
@@ -65,12 +76,11 @@ async function boot() {
   requestAnimationFrame(frame);
   document.getElementById('loading').remove();
 
-  // dica inicial
+  if (game.pendingReport) setTimeout(() => ui.showPendingReport(), 400);
   let vista = false;
-  try { vista = !!localStorage.getItem('dica_vista'); localStorage.setItem('dica_vista', '1'); } catch (e) { /* ignora */ }
-  if (!vista) setTimeout(() => ui.toast('👋 Toque num fogão para começar a cozinhar!'), 600);
-  window.__game = game; // ajuda nos testes
-  void isoToWorld;
+  try { vista = !!localStorage.getItem('dica_v2'); localStorage.setItem('dica_v2', '1'); } catch (e) { /* ignora */ }
+  if (!vista) setTimeout(() => ui.toast('👋 Você é o dono. Contrate, monte o cardápio, compre ingredientes e acompanhe as finanças.'), 800);
+  window.__game = game;
 }
 
 boot().catch((e) => {

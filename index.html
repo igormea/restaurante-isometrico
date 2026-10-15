@@ -15,19 +15,19 @@
 
   <!-- barra superior -->
   <header id="hud">
-    <div class="pill level">
-      <div class="lv-badge"><span>⭐</span><b id="hud-level">1</b></div>
-      <div class="xp">
-        <div class="xp-track"><div id="hud-xpbar" class="xp-fill"></div></div>
-        <small id="hud-xptext">0 / 40 XP</small>
-      </div>
-    </div>
+    <button id="hud-time" class="pill clock" aria-label="Abrir calendário">
+      <b id="hud-clock">--:--</b>
+      <span class="clock-txt"><small id="hud-date"></small><span id="hud-status" class="status">…</span></span>
+    </button>
     <div class="pill-group">
-      <div class="pill charm" title="Beleza do restaurante: atrai mais clientes">💖 <b id="hud-charm">0</b></div>
-      <div class="pill coins">🪙 <b id="hud-coins">0</b></div>
+      <div class="pill cash" title="Saldo em caixa"><b id="hud-cash">R$ 0</b></div>
+      <div class="pill small" title="Reputação">⭐ <b id="hud-rep">3.0</b></div>
+      <div class="pill small" title="Higiene">🧼 <b id="hud-hyg">100%</b></div>
+      <div class="pill small" title="Beleza (atrai clientes)">💖 <b id="hud-charm">0</b></div>
     </div>
   </header>
 
+  <div id="banner"></div>
   <div id="modebar"></div>
 
   <!-- zoom -->
@@ -39,11 +39,12 @@
 
   <!-- barra inferior -->
   <nav id="toolbar">
+    <button id="btn-staff" class="tool"><span>👥</span>Equipe</button>
+    <button id="btn-menu" class="tool"><span>📋</span>Cardápio</button>
+    <button id="btn-stock" class="tool"><span>📦</span>Estoque</button>
+    <button id="btn-finance" class="tool"><span>💰</span>Finanças</button>
     <button id="btn-shop" class="tool primary"><span>🛒</span>Loja</button>
-    <button id="btn-edit" class="tool"><span>✏️</span>Editar</button>
-    <button id="btn-expand" class="tool"><span>📐</span>Ampliar</button>
-    <button id="btn-friends" class="tool"><span>👥</span>Amigos</button>
-    <button id="btn-settings" class="tool"><span>⚙️</span>Ajustes</button>
+    <button id="btn-more" class="tool"><span>☰</span>Mais</button>
   </nav>
 
   <div id="modal-bg"><div id="modal" class="modal"></div></div>

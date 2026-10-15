@@ -150,7 +150,7 @@ export function drawWallSegment(ctx, side, i, wall, opts = {}) {
     // moldura da porta
     poly(ctx, face, shade(base, faceShade));
     poly(ctx, [lerp(0.15, 0), lerp(0.85, 0), lerp(0.85, H * 0.78), lerp(0.15, H * 0.78)], '#3a2a20');
-    poly(ctx, [lerp(0.2, 0), lerp(0.8, 0), lerp(0.8, H * 0.73), lerp(0.2, H * 0.73)], '#8fd0e8');
+    poly(ctx, [lerp(0.2, 0), lerp(0.8, 0), lerp(0.8, H * 0.73), lerp(0.2, H * 0.73)], opts.sky || '#8fd0e8');
     ctx.globalAlpha = 0.35;
     poly(ctx, [lerp(0.2, H * 0.4), lerp(0.8, H * 0.55), lerp(0.8, H * 0.73), lerp(0.2, H * 0.58)], '#ffffff');
     ctx.globalAlpha = 1;
@@ -171,7 +171,7 @@ export function drawWallSegment(ctx, side, i, wall, opts = {}) {
     }
     if (opts.window) {
       poly(ctx, [lerp(0.22, 50), lerp(0.78, 50), lerp(0.78, 100), lerp(0.22, 100)], '#fff8ec');
-      poly(ctx, [lerp(0.26, 54), lerp(0.74, 54), lerp(0.74, 96), lerp(0.26, 96)], '#a6dcf0');
+      poly(ctx, [lerp(0.26, 54), lerp(0.74, 54), lerp(0.74, 96), lerp(0.26, 96)], opts.sky || '#a6dcf0');
       ctx.globalAlpha = 0.5;
       poly(ctx, [lerp(0.3, 60), lerp(0.45, 60), lerp(0.38, 92), lerp(0.3, 92)], '#ffffff');
       ctx.globalAlpha = 1;
@@ -331,13 +331,16 @@ export function drawItem(ctx, item, cx, cy, opt = {}) {
       poly(ctx, [P(cx, cy, -0.33, 0.43, 6), P(cx, cy, 0.33, 0.43, 6), P(cx, cy, 0.33, 0.43, 32), P(cx, cy, -0.33, 0.43, 32)], null, c.trim);
       poly(ctx, [P(cx, cy, 0.43, 0.33, 6), P(cx, cy, 0.43, -0.33, 6), P(cx, cy, 0.43, -0.33, 32), P(cx, cy, 0.43, 0.33, 32)], null, c.trim);
       box(ctx, cx, cy, 0.96, 0.96, 6, 38, c.top);
-      if (opt.dish) {
-        const [px, py] = P(cx, cy, 0, 0, 44);
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath(); ctx.ellipse(px, py, 22, 11, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#d6d0c4'; ctx.lineWidth = 1.5; ctx.stroke();
-        ctx.font = '26px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(opt.dish.icon, px, py - 8);
+      if (opt.plates && opt.plates.length) {
+        const offs = [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.2], [0.2, 0.2]];
+        opt.plates.slice(0, 4).forEach((icon, i) => {
+          const [px, py] = P(cx, cy, offs[i][0], offs[i][1], 44);
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath(); ctx.ellipse(px, py, 13, 6.5, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = '#d6d0c4'; ctx.lineWidth = 1; ctx.stroke();
+          ctx.font = '16px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(icon, px, py - 5);
+        });
       }
       break;
     }
@@ -354,12 +357,25 @@ export function drawItem(ctx, item, cx, cy, opt = {}) {
         }
         box(ctx, cx, cy, 0.8, 0.8, 5, zt, c.top);
       }
-      if (opt.dish) {
-        const [px, py] = P(cx, cy, 0, 0, zt + 6);
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath(); ctx.ellipse(px, py, 15, 7.5, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.font = '18px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(opt.dish, px, py - 5);
+      const zt2 = zt + 6;
+      if (opt.dishes && opt.dishes.length) {
+        for (const dsh of opt.dishes) {
+          const [px, py] = P(cx, cy, dsh.dx * 0.22, dsh.dy * 0.22, zt2);
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath(); ctx.ellipse(px, py, 11, 5.5, 0, 0, Math.PI * 2); ctx.fill();
+          if (dsh.icon) { ctx.font = '14px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(dsh.icon, px, py - 4); }
+        }
+      }
+      if (opt.dirty) {
+        for (const [dx, dy] of [[-0.15, -0.1], [0.15, 0.1], [0.05, -0.2]]) {
+          const [px, py] = P(cx, cy, dx, dy, zt2);
+          ctx.fillStyle = '#f4efe6';
+          ctx.beginPath(); ctx.ellipse(px, py, 10, 5, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#b5835a';
+          ctx.beginPath(); ctx.arc(px - 2, py, 2, 0, Math.PI * 2); ctx.arc(px + 3, py - 1, 1.5, 0, Math.PI * 2); ctx.fill();
+        }
+        const [gx, gy] = P(cx, cy, 0.2, -0.15, zt2);
+        ctx.fillStyle = 'rgba(200,230,255,0.85)'; ctx.fillRect(gx - 3, gy - 10, 6, 10);
       }
       break;
     }
@@ -577,6 +593,33 @@ export function drawItem(ctx, item, cx, cy, opt = {}) {
       poly(ctx, [P(cx, cy, 0.35, -0.05, 0), P(cx, cy, 0.35, 0.05, 0), P(cx, cy, 0.35, 0.05, 26), P(cx, cy, 0.35, -0.05, 26)], shade(c.metal, -0.2));
       break;
     }
+    case 'fridge': {
+      shadow(ctx, cx, cy + 2, 0.42, 0.2);
+      box(ctx, cx, cy, 0.8, 0.7, 96, 0, c.body);
+      ctx.strokeStyle = c.trim; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(...P(cx, cy, 0, 0.35, 4)); ctx.lineTo(...P(cx, cy, 0, 0.35, 94)); ctx.stroke();
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(...P(cx, cy, -0.06, 0.35, 50)); ctx.lineTo(...P(cx, cy, -0.06, 0.35, 70)); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(...P(cx, cy, 0.06, 0.35, 50)); ctx.lineTo(...P(cx, cy, 0.06, 0.35, 70)); ctx.stroke();
+      const [lx, ly] = P(cx, cy, -0.25, 0.35, 86);
+      blob(ctx, lx, ly, 2.5, '#5fd38a');
+      break;
+    }
+    case 'register': {
+      shadow(ctx, cx, cy + 2, 0.45, 0.2);
+      box(ctx, cx, cy, 0.86, 0.86, 38, 0, c.body);
+      box(ctx, cx, cy, 0.94, 0.94, 6, 38, c.top);
+      box(ctx, cx, cy, 0.36, 0.3, 14, 44, c.trim, { ox: -0.05, oy: -0.05 });
+      const [sx, sy] = P(cx, cy, -0.05, -0.05, 58);
+      ctx.fillStyle = '#2b2f36';
+      ctx.beginPath(); ctx.moveTo(sx - 12, sy); ctx.lineTo(sx + 12, sy - 6); ctx.lineTo(sx + 12, sy - 20); ctx.lineTo(sx - 12, sy - 14); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#7fe0a0';
+      ctx.beginPath(); ctx.moveTo(sx - 9, sy - 3); ctx.lineTo(sx + 9, sy - 8); ctx.lineTo(sx + 9, sy - 17); ctx.lineTo(sx - 9, sy - 12); ctx.closePath(); ctx.fill();
+      const [mx, my] = P(cx, cy, 0.25, 0.2, 44);
+      ctx.fillStyle = '#3b3f47'; ctx.fillRect(mx - 5, my - 12, 10, 14);
+      ctx.fillStyle = '#9be7ff'; ctx.fillRect(mx - 3, my - 10, 6, 4);
+      break;
+    }
     case 'floor': {
       drawFloorTile(ctx, 0, 0, cx, cy, item.floor);
       drawFloorTile(ctx, 1, 0, cx + TW / 2, cy + TH / 2, item.floor);
@@ -599,5 +642,23 @@ export function drawItem(ctx, item, cx, cy, opt = {}) {
 export const KIND_HEIGHT = {
   stove: 70, counter: 60, table: 40, chair: 50, cushion: 15, plant: 75, lamp: 100, candle: 85,
   statue: 90, lantern: 75, bamboo: 120, bonsai: 85, cactus: 90, barrel: 45, pinata: 100, palm: 120,
-  surfboard: 100, chest: 45,
+  surfboard: 100, chest: 45, fridge: 100, register: 65,
 };
+
+// sujeira no chão
+export function drawDirt(ctx, cx, cy, k = 0) {
+  ctx.fillStyle = 'rgba(120,80,40,0.45)';
+  ctx.beginPath(); ctx.ellipse(cx - 6, cy, 16, 7, 0.2 + k, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(150,100,50,0.55)';
+  ctx.beginPath(); ctx.ellipse(cx + 9, cy + 3, 8, 4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + 2, cy - 5, 3, 0, Math.PI * 2); ctx.fill();
+}
+
+// fumaça de prato queimado
+export function drawSmoke(ctx, cx, cy, life) {
+  for (let k = 0; k < 5; k++) {
+    const ph = ((4 - life) * 0.5 + k / 5) % 1;
+    ctx.fillStyle = `rgba(70,70,70,${0.5 * (1 - ph) * Math.min(1, life)})`;
+    ctx.beginPath(); ctx.arc(cx + Math.sin(k * 2 + life * 3) * 10, cy - 60 - ph * 50, 8 + ph * 12, 0, Math.PI * 2); ctx.fill();
+  }
+}

@@ -5,21 +5,22 @@ Roda direto no navegador (computador ou celular), sem instalar nada.
 
 **▶️ Jogar:** https://igormea.github.io/restaurante-isometrico/
 
-## Como jogar
+## Conceito (v0.2)
 
-1. **Toque num fogão** e escolha um prato para cozinhar.
-2. Quando o prato ficar pronto (balão verde), **toque de novo**: o cozinheiro leva a comida até o balcão.
-3. O **garçom** serve os clientes sozinho. Cada porção vendida dá moedas 🪙.
-4. Se demorar demais para recolher, o prato **estraga** 🤢 — toque para limpar.
-5. Ganhe XP, **suba de nível** e libere novos pratos, mais fogões, decorações e expansões.
-6. Use a **Loja** para decorar no estilo que quiser (japonês, mexicano, praiano, clássico...).
-   Decoração aumenta a **beleza 💖**, que atrai mais clientes e deixa eles mais pacientes.
-7. **Editar** permite mover ou vender móveis. **Ampliar** aumenta o salão.
+Você é o **dono** do restaurante, sem personagem no jogo, como no SimCity. Quem trabalha é a equipe que você contrata.
+O tempo do jogo é o **tempo real**, no fuso do seu estado, com feriados nacionais, estaduais e municipais.
+No feriado ninguém vem trabalhar: se você abrir mesmo assim, atende tudo sozinho, clicando.
 
-O jogo salva sozinho no navegador. A comida continua cozinhando mesmo com o jogo fechado.
+- **Equipe:** cozinheiros (novato, experiente, sênior; com especialidade culinária), garçons, recepcionista e caixa.
+- **Cardápio:** você escolhe os pratos e os preços.
+- **Estoque:** ingredientes de dois fornecedores (preço × qualidade × prazo de entrega).
+- **Contas:** aluguel, salários, energia, gás, água e impostos, cobrados no dia 1º de cada mês.
+- **Clientes:** chegam em grupos, esperam na porta, pedem, comem, pagam no caixa e avaliam.
+- **Enquanto você está fora**, o restaurante continua funcionando e você recebe um relatório ao voltar.
 
 ## Versões
 
+- **v0.2 — Gestão**: tempo real, feriados, equipe com fichas, chance de queimar, cardápio, estoque, contas mensais, finanças, avaliações, modo manual no feriado e simulação offline.
 - **v0.1 — Protótipo**: cozinha, clientes, garçom, moedas, níveis, loja com 5 estilos,
   pintura de piso, troca de parede, modo editar e expansões. Arte feita 100% em código.
 

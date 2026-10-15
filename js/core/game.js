@@ -1,115 +1,147 @@
-// O "cérebro" do jogo: junta estado, sistemas e as ações que a interface pode pedir.
-import { createNewState, migrate, level, roomSize, objectAt, inRoom, countKind, DOOR, newUid } from './state.js';
+// O "cérebro" do jogo: junta estado, relógio, sistemas e as ações que a interface pede.
+import { createNewState, migrate, roomSize, objectAt, inRoom, countKind, doorOf, newUid, stockCapacity, stockUsed, kindOf } from './state.js';
 import { Events } from './events.js';
+import { local } from './clock.js';
 import { itemById } from '../config/items.js';
-import { recipeById } from '../config/recipes.js';
-import { EXPANSIONS, maxStoves, levelFromXp } from '../config/levels.js';
-import { stoveStatus } from '../systems/kitchen.js';
-import { Chef, Waiter } from '../systems/staff.js';
-import { CustomerManager } from '../systems/customers.js';
+import { INGREDIENTS, SUPPLIERS, recipeById } from '../config/recipes.js';
+import { EXPANSIONS } from '../config/levels.js';
+import { statusAt } from '../systems/schedule.js';
+import { accrue } from '../systems/economy.js';
+import { Service } from '../systems/service.js';
+import { simulateOffline } from '../systems/offline.js';
 
 export class Game {
   constructor(saveService) {
     this.saveService = saveService;
     this.state = null;
-    this.floats = []; // textos flutuantes (+moedas, +xp)
+    this.floats = [];
     this.mode = 'play'; // play | place | edit | paint
-    this.placing = null; // { itemId, moving?: obj, from? }
-    this.t = 0;
+    this.placing = null;
+    this.t = 0;          // segundos desde que a página abriu (animações)
   }
 
   async init() {
+    const now = Date.now();
     const saved = migrate(await this.saveService.load());
-    this.state = saved || createNewState();
-    // limpa dados temporários que não deveriam ter sido salvos
+    this.state = saved || createNewState(now, local(now, 'CE').monthKey);
     for (const o of this.state.objects) {
       o.data = o.data || {};
-      if (o.data._pending === 'cook' && !o.data.recipe) delete o.data._pending;
-      delete o.data._pending; delete o.data._incoming;
+      for (const k of Object.keys(o.data)) if (k.startsWith('_')) delete o.data[k];
     }
-    this.chef = new Chef(this);
-    this.waiter = new Waiter(this);
-    this.customers = new CustomerManager(this);
-    this._lastSave = 0;
-    if (!saved) this.save();
+    this.service = new Service(this);
+    this._accT = 0; this._saveT = 0;
+    if (saved) this.catchUp(now);
+    this.status = statusAt(this.state, now);
+    this.save();
   }
 
-  // ---------- salvar ----------
+  // simula o tempo em que o jogo ficou fechado
+  catchUp(now) {
+    const from = this.state.lastTick || now;
+    if (now - from < 60000) { accrue(this.state, from, now); this.state.lastTick = now; return; }
+    const months = [];
+    const rep = simulateOffline(this, from, now);
+    months.push(...rep.months);
+    this.state.lastTick = now;
+    this.pendingReport = rep;
+  }
+
+  now() { return Date.now(); }
+
   save() {
     const clean = JSON.parse(JSON.stringify(this.state, (k, v) => (k.startsWith('_') ? undefined : v)));
     clean.savedAt = Date.now();
     this.saveService.save(clean);
   }
-  async resetAll() {
-    await this.saveService.reset();
-    location.reload();
-  }
+  async resetAll() { await this.saveService.reset(); location.reload(); }
 
   // ---------- loop ----------
   update(dt) {
     this.t += dt;
-    this.chef.update(dt);
-    this.waiter.update(dt);
-    this.customers.update(dt);
-    for (const f of this.floats) { f.life -= dt; f.y -= dt * 30; }
+    const now = Date.now();
+    // se a aba ficou escondida muito tempo, simula como "offline"
+    if (now - this.state.lastTick > 90000) { this.catchUp(now); Events.emit('report'); }
+    this.status = statusAt(this.state, now);
+    this.service.update(dt, this.status);
+    // entregas de fornecedores
+    for (const d of [...this.state.deliveries]) if (d.at <= now) { this.receiveDelivery(d); this.toast(`🚚 Chegou: ${d.qty}× ${INGREDIENTS[d.ing].name}`); }
+    this._accT += dt;
+    if (this._accT > 5) {
+      this._accT = 0;
+      accrue(this.state, this.state.lastTick, now, (m) => Events.emit('monthClosed', m));
+      this.state.lastTick = now;
+      Events.emit('hud');
+    }
+    for (const f of this.floats) f.life -= dt;
     this.floats = this.floats.filter((f) => f.life > 0);
-    this._lastSave += dt;
-    if (this._lastSave > 10) { this._lastSave = 0; this.save(); }
+    this._saveT += dt;
+    if (this._saveT > 15) { this._saveT = 0; this.save(); }
   }
 
-  // ---------- economia ----------
-  get level() { return level(this.state); }
-  spend(n) {
-    if (this.state.coins < n) { this.toast('Moedas insuficientes!'); return false; }
-    this.state.coins -= n;
+  floatText(text, at, color = '#ffffff') { this.floats.push({ text, x: at.x, y: at.y, color, life: 1.8 }); }
+  toast(msg) { Events.emit('toast', msg); }
+  spend(n, cat = 'equipment') {
+    if (this.state.cash < n) { this.toast('Saldo insuficiente!'); return false; }
+    this.state.cash -= n;
+    if (cat === 'ingredients') this.state.month.ingredients += n;
+    else this.state.month.purchases = (this.state.month.purchases || 0) + n;
     Events.emit('hud');
     return true;
   }
-  earn(n, at, silent) {
-    this.state.coins += n;
-    if (!silent) this.state.stats.earned += n;
-    if (at) this.floatText(`+${n} 🪙`, at, '#ffd166');
-    Events.emit('hud');
-  }
-  addXp(n, at) {
-    const before = levelFromXp(this.state.xp);
-    this.state.xp += n;
-    if (at) this.floatText(`+${n} XP`, at, '#9be7ff', 0.4);
-    const after = levelFromXp(this.state.xp);
-    if (after > before) { Events.emit('levelup', after); this.save(); }
-    Events.emit('hud');
-  }
-  floatText(text, at, color = '#ffffff', delay = 0) {
-    this.floats.push({ text, x: at.x, y: at.y, color, life: 1.6 + delay, off: 0 });
-  }
-  toast(msg) { Events.emit('toast', msg); }
 
-  // ---------- cozinha ----------
-  clickStove(obj) {
-    const s = stoveStatus(obj);
-    if (obj.data._pending) { this.toast('O cozinheiro já está a caminho!'); return; }
-    if (s.state === 'idle') Events.emit('openRecipes', obj);
-    else if (s.state === 'cooking') this.toast(`${s.recipe.icon} ${s.recipe.name}: falta ${Math.ceil(s.remaining)}s`);
-    else if (s.state === 'ready') { obj.data._pending = 'serve'; this.chef.enqueue({ type: 'serve', uid: obj.uid }); }
-    else if (s.state === 'spoiled') { obj.data._pending = 'clean'; this.chef.enqueue({ type: 'clean', uid: obj.uid }); }
+  // ---------- feriado ----------
+  openOnHoliday() { this.state.holidayOpen[this.status.l.dateKey] = true; this.save(); Events.emit('hud'); this.toast('Restaurante aberto. Sem funcionários hoje: você atende tudo!'); }
+  closeOnHoliday() { delete this.state.holidayOpen[this.status.l.dateKey]; this.save(); Events.emit('hud'); }
+
+  // ---------- equipe ----------
+  hire(c) {
+    const s = this.state;
+    if (s.hiredIds.includes(c.id)) return;
+    s.staff.push({ ...c, folga: 1, hiredAt: Date.now() });
+    s.hiredIds.push(c.id);
+    this.save(); Events.emit('hud');
+    this.toast(`✅ ${c.name} foi contratado(a)!`);
   }
-  cook(obj, recipeId) {
-    const r = recipeById(recipeId);
-    if (r.level > this.level) return;
-    if (!this.spend(r.cost)) return;
-    obj.data._pending = 'cook';
-    this.chef.enqueue({ type: 'cook', uid: obj.uid, recipe: recipeId });
+  fire(emp) {
+    const s = this.state;
+    const cost = Math.round(emp.salary * 0.5);
+    s.cash -= cost; s.month.salaries += cost;
+    s.staff = s.staff.filter((e) => e !== emp);
+    this.save(); Events.emit('hud');
+    this.toast(`${emp.name} foi desligado(a). Rescisão: R$ ${cost}`);
+  }
+
+  // ---------- estoque ----------
+  pendingUnits() { return this.state.deliveries.reduce((a, d) => a + d.qty, 0); }
+  buyIngredient(ing, qty, supplierId) {
+    const sup = SUPPLIERS.find((x) => x.id === supplierId);
+    const s = this.state;
+    if (stockUsed(s) + this.pendingUnits() + qty > stockCapacity(s)) { this.toast('Sem espaço no estoque. Compre uma geladeira!'); return false; }
+    const cost = Math.round(INGREDIENTS[ing].price * sup.priceMult * qty * 100) / 100;
+    if (!this.spend(cost, 'ingredients')) return false;
+    s.deliveries.push({ ing, qty, q: sup.quality, at: Date.now() + sup.deliveryMin * 60000, sup: sup.id });
+    this.save();
+    return true;
+  }
+  receiveDelivery(d) {
+    const s = this.state;
+    const st = s.stock[d.ing];
+    const total = st.qty + d.qty;
+    st.q = total ? (st.q * st.qty + d.q * d.qty) / total : d.q;
+    st.qty = total;
+    s.deliveries = s.deliveries.filter((x) => x !== d);
+  }
+
+  // ---------- cardápio ----------
+  setMenu(id, on, price) {
+    const m = this.state.menu[id];
+    if (on != null) m.on = on;
+    if (price != null) m.price = Math.max(1, Math.round(price));
+    this.save();
   }
 
   // ---------- loja / construção ----------
-  canBuy(item) {
-    if (item.level > this.level) return `Disponível no nível ${item.level}`;
-    if (item.kind === 'stove' && countKind(this.state, 'stove') >= maxStoves(this.level)) {
-      return `Limite de fogões no seu nível (${maxStoves(this.level)}). Suba de nível para ter mais!`;
-    }
-    if (this.state.coins < item.price) return 'Moedas insuficientes';
-    return null;
-  }
+  canBuy(item) { return this.state.cash < item.price ? 'Saldo insuficiente' : null; }
   startPlacing(itemId) {
     const item = itemById(itemId);
     const why = this.canBuy(item);
@@ -123,15 +155,15 @@ export class Game {
     }
     if (item.cat === 'piso') { this.mode = 'paint'; this.placing = { itemId }; Events.emit('mode'); return; }
     this.mode = 'place';
-    this.placing = { itemId, gx: null, gy: null };
+    this.placing = { itemId };
     Events.emit('mode');
   }
   validTile(x, y) {
     if (!inRoom(this.state, x, y)) return false;
-    if (x === DOOR.x && y === DOOR.y) return false;
-    if (x === DOOR.x + 1 && y === DOOR.y) return false; // espaço livre na entrada
+    const d = doorOf(this.state);
+    if (x === d.x && (y === d.y || y === d.y - 1)) return false; // entrada livre
     if (objectAt(this.state, x, y)) return false;
-    const people = [this.chef.ch, this.waiter.ch, ...this.customers.list.map((c) => c.ch)];
+    const people = [...this.service.agents.values()].map((a) => a.ch).concat(this.service.groups.flatMap((g) => g.members.map((m) => m.ch)));
     if (people.some((p) => p.tx === x && p.ty === y)) return false;
     return true;
   }
@@ -147,25 +179,21 @@ export class Game {
       return;
     }
     const item = itemById(p.itemId);
-    const why = this.canBuy(item);
-    if (why) { this.toast(why); this.cancelPlacing(); return; }
-    this.spend(item.price);
+    if (!this.spend(item.price)) { this.cancelPlacing(); return; }
     this.state.objects.push({ uid: newUid(), item: item.id, x, y, data: {} });
     this.save();
-    // continua colocando se ainda puder comprar outro igual (prático para cadeiras)
     const repeatable = ['chair', 'cushion', 'table'].includes(item.kind);
-    if (!repeatable || this.canBuy(item)) { this.cancelPlacing(); }
+    if (!repeatable || this.canBuy(item)) this.cancelPlacing();
     Events.emit('hud');
   }
   paintAt(x, y) {
     const p = this.placing;
     if (!p || !inRoom(this.state, x, y)) return;
     const key = x + ',' + y;
-    const cur = this.state.floor[key] || 'piso_bege';
-    if (cur === p.itemId) return;
+    if ((this.state.floor[key] || 'piso_bege') === p.itemId) return;
     const item = itemById(p.itemId);
-    if (this.state.coins < item.price) { this.toast('Moedas insuficientes!'); return; }
-    this.state.coins -= item.price;
+    if (this.state.cash < item.price) { this.toast('Saldo insuficiente!'); return; }
+    this.state.cash -= item.price;
     if (p.itemId === 'piso_bege') delete this.state.floor[key]; else this.state.floor[key] = p.itemId;
     Events.emit('hud');
   }
@@ -176,7 +204,7 @@ export class Game {
     let tiles = 0;
     for (let x = 0; x < n; x++) for (let y = 0; y < n; y++) if ((this.state.floor[x + ',' + y] || 'piso_bege') !== p.itemId) tiles++;
     const cost = tiles * item.price;
-    if (this.state.coins < cost) { this.toast(`Precisa de ${cost} moedas para pintar tudo.`); return; }
+    if (this.state.cash < cost) { this.toast(`Precisa de R$ ${cost} para pintar tudo.`); return; }
     for (let x = 0; x < n; x++) for (let y = 0; y < n; y++) this.paintAt(x, y);
     this.save();
   }
@@ -186,24 +214,17 @@ export class Game {
       p.moving.x = p.from.x; p.moving.y = p.from.y;
       this.state.objects.push(p.moving);
       this.mode = 'edit';
-    } else {
-      this.mode = 'play';
-    }
+    } else this.mode = 'play';
     this.placing = null;
     this.save();
     Events.emit('mode');
   }
-
-  // ---------- modo editar ----------
   isBusy(obj) {
-    if (this.customers.seatTaken(obj.uid)) return 'Tem um cliente usando isso agora.';
-    const kind = itemById(obj.item).kind;
-    if (kind === 'table') {
-      const st = this.state;
-      for (const c of this.customers.list) if (c.table === obj && c.sitting) return 'Tem cliente nessa mesa.';
-      void st;
-    }
-    if (obj.data._pending || obj.data._incoming) return 'O cozinheiro está usando isso.';
+    const d = obj.data;
+    if (d._group || d._order || (d._plates && d._plates.length) || d._dirty) return 'Esse item está em uso agora.';
+    const sv = this.service;
+    if (sv.groups.some((g) => g.members.some((m) => m.seat === obj))) return 'Tem cliente usando isso agora.';
+    if (kindOf(obj) === 'register' && sv.groups.some((g) => g.state === 'waitBill')) return 'Tem cliente pagando agora.';
     return null;
   }
   pickUp(obj) {
@@ -218,13 +239,12 @@ export class Game {
     const p = this.placing;
     if (!p || !p.moving) return;
     const item = itemById(p.moving.item);
-    if (item.kind === 'stove' && countKind(this.state, 'stove') < 1) { this.toast('Você precisa de pelo menos 1 fogão.'); return; }
-    if (item.kind === 'counter' && countKind(this.state, 'counter') < 1) { this.toast('Você precisa de pelo menos 1 balcão.'); return; }
+    if (item.kind === 'counter' && countKind(this.state, 'counter') < 1) { this.toast('Você precisa de pelo menos 1 balcão de passe.'); return; }
     const value = Math.floor(item.price / 2);
-    this.earn(value, null, true);
-    this.toast(`Vendido por ${value} moedas.`);
+    this.state.cash += value;
+    this.toast(`Vendido por R$ ${value}.`);
     this.placing = null; this.mode = 'edit';
-    this.save(); Events.emit('mode');
+    this.save(); Events.emit('mode'); Events.emit('hud');
   }
   setMode(m) {
     if (this.placing) this.cancelPlacing();
@@ -235,12 +255,11 @@ export class Game {
   nextExpansion() { return EXPANSIONS[this.state.expansion + 1] || null; }
   expand() {
     const e = this.nextExpansion();
-    if (!e) return;
-    if (this.level < e.level) { this.toast(`Expansão disponível no nível ${e.level}.`); return; }
-    if (!this.spend(e.price)) return;
+    if (!e || !this.spend(e.price)) return;
     this.state.expansion++;
     this.save();
     Events.emit('expanded');
-    this.toast(`Restaurante ampliado para ${e.size}×${e.size}! 🎉`);
+    this.toast(`Restaurante ampliado para ${e.size}×${e.size}! O aluguel aumentou.`);
   }
 }
+export { recipeById };
