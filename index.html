@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#7a5233">
+  <title>Restaurante Isométrico</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-mode="play">
+  <canvas id="game"></canvas>
+
+  <!-- barra superior -->
+  <header id="hud">
+    <div class="pill level">
+      <div class="lv-badge"><span>⭐</span><b id="hud-level">1</b></div>
+      <div class="xp">
+        <div class="xp-track"><div id="hud-xpbar" class="xp-fill"></div></div>
+        <small id="hud-xptext">0 / 40 XP</small>
+      </div>
+    </div>
+    <div class="pill-group">
+      <div class="pill charm" title="Beleza do restaurante: atrai mais clientes">💖 <b id="hud-charm">0</b></div>
+      <div class="pill coins">🪙 <b id="hud-coins">0</b></div>
+    </div>
+  </header>
+
+  <div id="modebar"></div>
+
+  <!-- zoom -->
+  <div id="zoom">
+    <button id="btn-zoom-in" aria-label="Aproximar">＋</button>
+    <button id="btn-zoom-out" aria-label="Afastar">－</button>
+    <button id="btn-center" aria-label="Centralizar">◎</button>
+  </div>
+
+  <!-- barra inferior -->
+  <nav id="toolbar">
+    <button id="btn-shop" class="tool primary"><span>🛒</span>Loja</button>
+    <button id="btn-edit" class="tool"><span>✏️</span>Editar</button>
+    <button id="btn-expand" class="tool"><span>📐</span>Ampliar</button>
+    <button id="btn-friends" class="tool"><span>👥</span>Amigos</button>
+    <button id="btn-settings" class="tool"><span>⚙️</span>Ajustes</button>
+  </nav>
+
+  <div id="modal-bg"><div id="modal" class="modal"></div></div>
+  <div id="toasts"></div>
+  <div id="loading">Abrindo o restaurante…</div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
