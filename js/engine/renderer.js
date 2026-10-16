@@ -5,6 +5,7 @@ import { itemById } from '../config/items.js';
 import { roomSize, doorOf, kindOf } from '../core/state.js';
 import { tableFor } from '../systems/service.js';
 import { PATIENCE } from '../config/economy.js';
+import { CUSTOMER_TYPES } from '../config/customers.js';
 
 // cor do céu nas janelas conforme a hora real
 function skyColor(min) {
@@ -128,7 +129,7 @@ export class Renderer {
       list.push({ d: a.ch.x + a.ch.y + 1.02, draw: () => this.drawPerson(a.ch, t, {}) });
     }
     for (const g of sv.groups) for (const m of g.members) {
-      list.push({ d: m.ch.x + m.ch.y + 1 + (m.sitting ? 0.05 : 0.02), draw: () => this.drawPerson(m.ch, t, { sitting: m.sitting, mood: g.state === 'leaving' && !g.members.some((x) => x.plate) ? 'angry' : null }) });
+      list.push({ d: m.ch.x + m.ch.y + 1 + (m.sitting ? 0.05 : 0.02), draw: () => this.drawPerson(m.ch, t, { sitting: m.sitting, scale: m.kid ? 0.72 : 1, mood: g.state === 'leaving' && !g.members.some((x) => x.plate) ? 'angry' : null }) });
     }
     if (game.mode === 'place' && game.placing && this.hover) {
       const { x, y } = this.hover;
@@ -148,13 +149,23 @@ export class Renderer {
     // balões de fala (por cima de tudo)
     const speakers = [];
     for (const a of sv.agents.values()) speakers.push({ ch: a.ch, sitting: false, staff: true });
-    for (const g of sv.groups) for (const m of g.members) speakers.push({ ch: m.ch, sitting: m.sitting });
+    for (const g of sv.groups) for (const m of g.members) speakers.push({ ch: m.ch, sitting: m.sitting, kid: m.kid });
+    // plaquinha com o nome dos clientes fiéis
+    ctx.font = '800 11px Nunito, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (const g of sv.groups) for (const m of g.members) {
+      if (!m.regular || m.ch.alpha < 0.5 || (m.ch.speech && m.ch.speech.until > t)) continue;
+      const w = tileCenter(m.ch.x, m.ch.y);
+      const label = '⭐ ' + m.regular.name;
+      const tw = ctx.measureText(label).width + 12, ty = w.y - (m.sitting ? 86 : 104);
+      ctx.fillStyle = 'rgba(90,61,43,0.88)'; roundRect(ctx, w.x - tw / 2, ty - 9, tw, 18, 9);
+      ctx.fillStyle = '#ffe9c2'; ctx.fillText(label, w.x, ty + 0.5);
+    }
     for (const sp of speakers) {
       const sc = sp.ch.speech;
       if (!sc || sc.until < t || sp.ch.alpha < 0.3) continue;
       const w = tileCenter(sp.ch.x, sp.ch.y);
       const fade = Math.min(1, (sc.until - t) / 0.4, (t - sc.start) / 0.15);
-      drawSpeech(ctx, w.x, w.y - (sp.sitting ? 74 : 92), sc.text, fade, sp.staff ? { bg: '#fff7e6', border: '#e0b872' } : {});
+      drawSpeech(ctx, w.x, w.y - (sp.sitting ? 74 : 92) * (sp.kid ? 0.78 : 1), sc.text, fade, sp.staff ? { bg: '#fff7e6', border: '#e0b872' } : {});
     }
 
     // textos flutuantes
@@ -175,7 +186,7 @@ export class Renderer {
   drawPerson(ch, t, opt) {
     const w = tileCenter(ch.x, ch.y);
     this.ctx.globalAlpha = ch.alpha;
-    drawCharacter(this.ctx, w.x, w.y, ch.look, t + ch.x * 3, { walking: ch.walking, sitting: opt.sitting, flip: ch.flip, carry: ch.carry, tool: ch.tool, mood: opt.mood });
+    drawCharacter(this.ctx, w.x, w.y, ch.look, t + ch.x * 3, { walking: ch.walking, sitting: opt.sitting, flip: ch.flip, carry: ch.carry, tool: ch.tool, mood: opt.mood, scale: opt.scale });
     this.ctx.globalAlpha = 1;
   }
 
@@ -217,6 +228,7 @@ export class Renderer {
     if (k === 'counter') opt.plates = (o.data._plates || []).map((p) => p.recipe.icon);
     if (k === 'table') { opt.dishes = tableDishes.get(o.uid); opt.dirty = o.data._dirty; opt.dirtyN = o.data._dirtyN; opt.stain = o.data._stain; }
     if (k === 'sink') { opt.pile = this.game.state.dishes.dirty; opt.washing = o.data._washing; }
+    if (k === 'bar') opt.busy = !!o.data._busy;
     if (k === 'dishwasher') opt.running = !!o.data._load && o.data._end > this.game.t;
     if (k === 'chair') {
       const tf = tableFor(this.game.state, o);
@@ -279,6 +291,10 @@ export class Renderer {
     } else if (item.kind === 'table' && o.data._stain && !o.data._wipeBy && !o.data._group && !sv.onDuty('zelador').length) {
       this.bubble(c.x, c.y - 70, '🧽', { r: 14, hand: true });
     }
+    if (item.kind === 'bar') {
+      const n = sv.drinkOrders.filter((d) => d.status === 'queued').length;
+      if (n) { const nw = !sv.onDuty('garcom').length; this.bubble(c.x, c.y - 92, '🥤', { r: 15, badge: n, hand: nw, pulse: nw }); }
+    }
     if (item.kind === 'sink') {
       const dirty = g.state.dishes.dirty;
       if (dirty > 0) {
@@ -307,15 +323,15 @@ export class Renderer {
     const col = (r) => (r > 0.5 ? '#2a9d8f' : r > 0.25 ? '#f4a261' : '#e63946');
     const manual = !g.claim;
     if (g.state === 'waitSeat') {
-      const r = ring(g.wait, PATIENCE.door);
+      const r = ring(g.wait, PATIENCE.door * g.pm);
       const noHost = !sv.onDuty('recepcionista').length && !sv.onDuty('garcom').length;
-      this.bubble(w.x, w.y - 100, '👋', { ring: r, ringColor: col(r), badge: g.size, hand: noHost && manual, pulse: noHost });
+      this.bubble(w.x, w.y - 100, g.members[0].regular ? '⭐' : (CUSTOMER_TYPES[g.type]?.icon || '👋'), { ring: r, ringColor: col(r), badge: g.size, hand: noHost && manual, pulse: noHost });
     } else if (g.state === 'waitOrder') {
-      const r = ring(g.wait, PATIENCE.order);
+      const r = ring(g.wait, PATIENCE.order * g.pm);
       const noWaiter = !sv.onDuty('garcom').length;
       this.bubble(w.x, w.y - 95, '📝', { ring: r, ringColor: col(r), hand: noWaiter && manual, pulse: noWaiter });
     } else if (g.state === 'waitFood' && !g.members.some((m) => m.plate)) {
-      const r = ring(g.wait, PATIENCE.food);
+      const r = ring(g.wait, PATIENCE.food * g.pm);
       this.bubble(w.x, w.y - 95, '⏳', { r: 15, ring: r, ringColor: col(r) });
     } else if (g.state === 'waitBill') {
       const payer = g.members.find((m) => m.paying) || lead;

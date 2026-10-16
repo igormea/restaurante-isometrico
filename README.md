@@ -15,14 +15,16 @@ No feriado ninguém vem trabalhar: se você abrir mesmo assim, atende tudo sozin
 - **Louça:** pratos limitados; os sujos vão para a pia e o lavador lava à mão ou com lava-louças (compra na loja).
 - **Limpeza:** sujeira aparece no chão e nas mesas; o zelador limpa. Higiene baixa espanta clientes.
 - **Diálogos:** clientes e equipe conversam em balões (chegada, pedido, comida, conta, despedida).
-- **Cardápio:** você escolhe os pratos e os preços.
+- **Cardápio:** você escolhe os pratos, as bebidas e os preços. Pratos marcados como vegetariano, sem glúten ou sem lactose.
+- **Bebidas:** o garçom prepara no bar (água, refri, suco, café, cerveja, caipirinha).
 - **Estoque:** ingredientes de dois fornecedores (preço × qualidade × prazo de entrega).
 - **Contas:** aluguel, salários, energia, gás, água e impostos, cobrados no dia 1º de cada mês.
-- **Clientes:** chegam em grupos, esperam na porta, pedem, comem, pagam no caixa e avaliam.
+- **Clientes:** chegam em grupos de tipos diferentes (executivo, família com crianças, casal, turista, estudante, exigente), alguns com restrição alimentar. Um crítico gastronômico aparece disfarçado de vez em quando. Quem sai muito feliz vira cliente fiel e volta pedindo o prato favorito.
 - **Enquanto você está fora**, o restaurante continua funcionando e você recebe um relatório ao voltar.
 
 ## Versões
 
+- **v0.4 — Clientes**: tipos de cliente, crítico disfarçado, clientes fiéis, restrições alimentares, bar e bebidas.
 - **v0.3 — Ritmo e vida**: pratos em segundos, mais clientes, balões de diálogo, lavador e pia, lava-louças, zelador e sujeira aleatória.
 - **v0.2 — Gestão**: tempo real, feriados, equipe com fichas, chance de queimar, cardápio, estoque, contas mensais, finanças, avaliações, modo manual no feriado e simulação offline.
 - **v0.1 — Protótipo**: cozinha, clientes, garçom, moedas, níveis, loja com 5 estilos,

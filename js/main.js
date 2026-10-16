@@ -71,6 +71,7 @@ async function boot() {
   document.getElementById('loading').remove();
 
   if (game.pendingReport) setTimeout(() => ui.showPendingReport(), 400);
+  if (game.state._v4News) setTimeout(() => ui.toast('🆕 Novidade: bar de bebidas, tipos de cliente, clientes fiéis e restrições alimentares!'), 2600);
   if (game.state._v3News) setTimeout(() => ui.toast('🆕 Chegaram a pia, a lavadora Antônia e o zelador Raimundo!'), 1500);
   let vista = false;
   try { vista = !!localStorage.getItem('dica_v2'); localStorage.setItem('dica_v2', '1'); } catch (e) { /* ignora */ }

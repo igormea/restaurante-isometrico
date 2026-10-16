@@ -4,10 +4,11 @@ import { Character, randomLook, staffLook } from './characters.js';
 import { outsideOf, exitOf, accessTiles, walkable } from '../engine/pathfinding.js';
 import { objectsOfKind, objectAt, kindOf, isSeat, charm, hygiene, inRoom, roomSize, doorOf } from '../core/state.js';
 import { itemById } from '../config/items.js';
-import { RECIPES, CUISINES } from '../config/recipes.js';
+import { RECIPES, CUISINES, DRINKS, DIETS, fitsDiet } from '../config/recipes.js';
+import { CUSTOMER_TYPES, pickType, CRITIC_CHANCE, CRITIC_WEIGHT, DIET_CHANCE, REGULAR, regularName } from '../config/customers.js';
 import { LEVELS } from '../config/staff.js';
 import { PATIENCE, EAT_MIN, COSTS, HAND_WASH_SECS, BREAK_CHANCE } from '../config/economy.js';
-import { LINES, pickLine } from '../config/dialogue.js';
+import { LINES, pickLine, TYPE_LINES, REGULAR_LINES, DIET_LINES, DRINK_LINES } from '../config/dialogue.js';
 import { staffOnDuty } from './schedule.js';
 
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -39,6 +40,7 @@ export class Service {
     this.game = game;
     this.groups = [];
     this.orders = [];
+    this.drinkOrders = [];
     this.agents = new Map(); // id do funcionário -> agente
     this.spawnT = 6;
     this.dirtT = 30;
@@ -179,6 +181,8 @@ export class Service {
     for (const t of objectsOfKind(this.state, 'table')) { if (t.data._clearBy === a) t.data._clearBy = null; if (t.data._wipeBy === a) t.data._wipeBy = null; }
     for (const d of this.state.dirt) if (d._by === a) d._by = null;
     if (a.carryDirty) { this.toDirty(a.carryDirty); a.carryDirty = 0; }
+    for (const d of this.drinkOrders) if (d.by === a && d.status === 'making') { d.status = 'queued'; d.by = null; }
+    const br = this.bar(); if (br && br.data._by === a) { br.data._by = null; br.data._busy = false; }
     const sk = this.sink(); if (sk && sk.data._by === a) { sk.data._by = null; sk.data._washing = false; }
     for (const m of this.machines()) if (m.data._by === a) m.data._by = null;
   }
@@ -326,6 +330,9 @@ export class Service {
     // 2. anotar pedidos
     const go = this.groups.find((g) => g.state === 'waitOrder' && !g.claim);
     if (go) { this.takeOrder(a, go); return true; }
+    // 2b. preparar e levar bebidas
+    const dq = this.drinkOrders.find((d) => d.status === 'queued');
+    if (dq && this.bar() && !this.bar().data._by) { this.makeDrinks(a, dq.group); return true; }
     // 3. receber clientes se não houver recepcionista
     if (!this.onDuty('recepcionista').length) {
       const gs = this.groups.find((g) => g.state === 'waitSeat' && !g.claim && this.findTable(g.size));
@@ -381,16 +388,24 @@ export class Service {
     g.claim = a; a.busy = true;
     const write = () => {
       this.line(a.ch, 'waiterTake');
-      // cada um escolhe o seu prato e fala
-      const choices = g.members.map(() => this.chooseDish(g));
-      let delay = 1.6;
+      // cada um escolhe o seu prato (e a bebida) e fala
+      const choices = g.members.map((m) => this.chooseDish(g, m));
+      const drinks = g.members.map((m) => this.chooseDrink(g, m));
+      let delay = 1.5;
       g.members.forEach((m, i) => {
         const r = choices[i];
-        this.say(m.ch, r ? pickLine(LINES.custOrder(lower1(r.name))) : pickLine(LINES.custOrderNone), delay);
-        delay += 1.5;
+        if (m.diet) { this.say(m.ch, DIET_LINES.ask[m.diet], delay); delay += 1.3; }
+        let text;
+        if (!r) text = m.diet ? DIET_LINES.none[m.diet] : pickLine(LINES.custOrderNone);
+        else if (m.regular && r.id === m.regular.fav) text = pickLine(REGULAR_LINES.order);
+        else if (m.kid) text = `Eu quero ${lower1(r.name)}!`;
+        else text = pickLine(LINES.custOrder(lower1(r.name)));
+        this.say(m.ch, text, delay); delay += 1.3;
+        if (m.regular && r && r.id === m.regular.fav) { this.say(a.ch, pickLine(REGULAR_LINES.waiterKnows(lower1(r.name))), delay); delay += 1.3; }
+        if (drinks[i]) { this.say(m.ch, m.kid ? pickLine(DRINK_LINES.kid) : pickLine(DRINK_LINES.order(lower1(drinks[i].name))), delay); delay += 1.1; }
       });
       this.say(a.ch, pickLine(LINES.waiterOk), delay);
-      this.doFor(a, (delay + 0.8) / a.emp.speed, () => { this.placeOrders(g, choices); g.claim = null; a.busy = false; });
+      this.doFor(a, (delay + 0.8) / a.emp.speed, () => { this.placeOrders(g, choices, drinks); g.claim = null; a.busy = false; });
     };
     if (!a.ch.goToObject(this.state, g.table, write)) write();
   }
@@ -438,8 +453,15 @@ export class Service {
   seatGroup(a, g) {
     g.claim = a; a.busy = true;
     const greet = () => {
-      this.line(a.ch, 'hostWelcome', this.st.l.hour);
-      this.say(g.members[0].ch, pickLine(LINES.custParty(g.size)), 1.5);
+      const lead = g.members[0];
+      if (lead.regular) {
+        this.say(a.ch, pickLine(REGULAR_LINES.hostHello(lead.regular.name)));
+        this.say(lead.ch, pickLine(REGULAR_LINES.custHello), 1.5);
+      } else {
+        this.line(a.ch, 'hostWelcome', this.st.l.hour);
+        const tl = TYPE_LINES[g.type];
+        this.say(lead.ch, tl && Math.random() < 0.5 ? pickLine(tl.arrive) : pickLine(LINES.custParty(g.size)), 1.5);
+      }
       this.say(a.ch, pickLine(LINES.hostFollow), 3);
       this.doFor(a, 3.4 / a.emp.speed, () => {
         a.busy = false; g.claim = null;
@@ -472,7 +494,7 @@ export class Service {
   }
   // conversa na hora de pagar; devolve quanto tempo ela dura
   billTalk(staffCh, g) {
-    const total = g.members.filter((m) => m.plate).reduce((s, m) => s + m.price, 0);
+    const total = this.billTotal(g);
     const sat = this.satisfaction(g);
     g._sat = sat;
     const payer = g.members.find((m) => m.paying) || g.members[0];
@@ -648,22 +670,37 @@ export class Service {
     const rate = this.arrivalRate(st);
     this.spawnT = rate > 0 ? -Math.log(1 - Math.random()) * 3600 / rate : 60;
     if (!rate) return;
-    const size = pick([1, 2, 2, 2, 2, 3, 3, 4, 4]);
+    // quem chegou: um cliente fiel voltando, o crítico disfarçado ou um tipo sorteado
+    const s = this.state;
+    const present = new Set(this.groups.flatMap((g) => g.members.map((m) => m.regular?.id)).filter(Boolean));
+    const regs = (s.regulars || []).filter((r) => !present.has(r.id) && Date.now() - (r.last || 0) > 20 * 60000);
+    let regular = null, critic = false, type;
+    if (regs.length && Math.random() < REGULAR.returnChance) { regular = pick(regs); type = regular.type || 'comum'; }
+    else if (Math.random() < CRITIC_CHANCE) { critic = true; type = 'comum'; }
+    else type = pickType();
+    const T = CUSTOMER_TYPES[type];
+    const size = critic ? 1 : pick(T.sizes);
     // restaurante lotado: a maioria passa reto e procura outro lugar
     if (!this.findTable(size) && Math.random() < 0.6) return;
     const free = this.freeSlots();
     if (free.length < size || this.groups.filter((g) => g.state === 'waitSeat' || g.state === 'arriving').length >= 3) return;
     const prefs = Object.keys(CUISINES);
     const g = {
-      id: ++gid, size, pref: pick(prefs), state: 'arriving', wait: 0, waits: { door: 0, order: 0, food: 0, bill: 0 },
-      members: [], table: null, claim: null, atRegister: false, nagged: {},
+      id: ++gid, size, pref: T.loves || pick(prefs), type, critic, state: 'arriving', wait: 0, waits: { door: 0, order: 0, food: 0, bill: 0 },
+      members: [], table: null, claim: null, atRegister: false, nagged: {}, pm: T.patience + (regular ? 0.2 : 0), arrivedAt: this.t,
     };
     for (let i = 0; i < size; i++) {
       const d0 = doorOf(this.state);
-      const ch = new Character(d0.x + (i % 2 ? 0.4 : -0.4), d0.y + 8 + i * 0.5, randomLook());
-      ch.alpha = 0; ch.speed = 2.6;
+      const kid = !!T.kids && i >= 2;
+      let look = randomLook();
+      if (i === 0 && regular) look = { ...regular.look };
+      else if (T.look && !kid) look = { ...look, ...T.look };
+      const ch = new Character(d0.x + (i % 2 ? 0.4 : -0.4), d0.y + 8 + i * 0.5, look);
+      ch.alpha = 0; ch.speed = kid ? 2.9 : 2.6;
       const slot = free[i];
-      const m = { ch, slot, seat: null, plate: null, eatLeft: 0, done: false, failed: false };
+      let diet = null;
+      if (!kid && !(i === 0 && regular)) for (const [k, c] of Object.entries(DIET_CHANCE)) if (!diet && Math.random() < c) diet = k;
+      const m = { ch, slot, seat: null, plate: null, eatLeft: 0, done: false, failed: false, kid, diet, regular: i === 0 ? regular : null };
       ch.walkStraight([{ x: slot.x, y: slot.y }], () => { m.arrived = true; ch.flip = false; });
       g.members.push(m);
     }
@@ -706,7 +743,9 @@ export class Service {
   nag(g, stage, key, ratio) {
     if (g.nagged[stage] || ratio < 0.55) return;
     g.nagged[stage] = true;
-    this.line(pick(g.members).ch, key);
+    const who = pick(g.members).ch;
+    if (key) this.line(who, key);
+    else this.say(who, pickLine(TYPE_LINES[g.type].late));
   }
   updateGroup(g, dt) {
     for (const m of g.members) {
@@ -721,17 +760,17 @@ export class Service {
     g.wait += dt;
     if (g.state === 'waitSeat') {
       g.waits.door = g.wait;
-      this.nag(g, 'door', 'custDoorImpatient', g.wait / (PATIENCE.door * 60));
-      if (g.wait > PATIENCE.door * 60 && !g.claim) this.walkOut(g, 'Cansaram de esperar na porta', 'custGiveUpDoor');
+      this.nag(g, 'door', 'custDoorImpatient', g.wait / (PATIENCE.door * 60 * g.pm));
+      if (g.wait > PATIENCE.door * 60 * g.pm && !g.claim) this.walkOut(g, 'Cansaram de esperar na porta', 'custGiveUpDoor');
     } else if (g.state === 'waitOrder') {
       g.waits.order = g.wait;
       if (g.wait > 12 && !g.called) { g.called = true; this.line(g.members[0].ch, 'custCallWaiter'); }
-      if (g.wait > PATIENCE.order * 60 && !g.claim) this.walkOut(g, 'Ninguém veio anotar o pedido', 'custGiveUpOrder');
+      if (g.wait > PATIENCE.order * 60 * g.pm && !g.claim) this.walkOut(g, 'Ninguém veio anotar o pedido', 'custGiveUpOrder');
     } else if (g.state === 'waitFood') {
       g.waits.food = g.wait;
       let all = true;
       const anyServed = g.members.some((m) => m.plate);
-      if (!anyServed) this.nag(g, 'food', 'custFoodLate', g.wait / (PATIENCE.food * 60));
+      if (!anyServed) this.nag(g, 'food', TYPE_LINES[g.type] && Math.random() < 0.5 ? null : 'custFoodLate', g.wait / (PATIENCE.food * 60 * g.pm));
       for (const m of g.members) {
         if (m.plate && !m.done) {
           m.eatLeft -= dt;
@@ -743,14 +782,18 @@ export class Service {
       if (all) {
         if (g.members.some((m) => m.done)) this.askBill(g);
         else this.walkOut(g, 'Não conseguiram pedir nada', 'custGiveUpOrder');
-      } else if (!anyServed && g.wait > PATIENCE.food * 60) this.walkOut(g, 'A comida demorou demais', 'custGiveUpFood');
+      } else if (!anyServed && g.wait > PATIENCE.food * 60 * g.pm) this.walkOut(g, 'A comida demorou demais', 'custGiveUpFood');
     } else if (g.state === 'waitBill') {
       g.waits.bill = g.wait;
-      this.nag(g, 'bill', 'custBillLate', g.wait / (PATIENCE.bill * 60));
+      this.nag(g, 'bill', 'custBillLate', g.wait / (PATIENCE.bill * 60 * g.pm));
     }
   }
   eatComment(g, m) {
     const s = this.state;
+    const tl = TYPE_LINES[g.type];
+    if (m.kid && Math.random() < 0.5) { this.say(m.ch, pick(['Hmm, gostoso!', 'Não quero mais!', 'Posso sobremesa?', 'Tô cheio!'])); return; }
+    if (tl && Math.random() < 0.3) { this.say(m.ch, pickLine(tl.eat)); return; }
+    if (m.regular && Math.random() < 0.4) { this.say(m.ch, 'Como sempre, perfeito!'); return; }
     const roll = Math.random();
     if (roll < 0.6) {
       const q = m.plate.q;
@@ -774,24 +817,82 @@ export class Service {
     const ks = Object.keys(r.ing);
     return ks.reduce((a, k) => a + (this.state.stock[k]?.q || 1), 0) / ks.length;
   }
-  chooseDish(g) {
-    const avail = this.availableRecipes();
+  chooseDish(g, m) {
+    const avail = this.availableRecipes().filter((r) => fitsDiet(r, m?.diet));
     if (!avail.length) return null;
+    if (m?.regular) { const fav = avail.find((r) => r.id === m.regular.fav); if (fav) return fav; }
+    const T = CUSTOMER_TYPES[g.type] || CUSTOMER_TYPES.comum;
     const w = avail.map((r) => {
       const price = this.state.menu[r.id].price;
-      let x = Math.pow(r.price / price, 2);
+      let x = Math.pow(r.price / price, 2 * T.priceSens);
+      if (T.priceSens > 1) x *= Math.pow(40 / price, T.priceSens - 1); // quem tem pouco dinheiro prefere o barato
       if (r.cuisine === g.pref) x *= 3;
+      if (m?.kid && (r.cuisine === 'lanches' || r.id === 'macarrao' || r.id === 'pizza')) x *= 4;
       return x;
     });
     let s = w.reduce((a, b) => a + b, 0) * Math.random();
     for (let i = 0; i < avail.length; i++) { s -= w[i]; if (s <= 0) return avail[i]; }
     return avail[avail.length - 1];
   }
-  placeOrders(g, choices) {
+  // bebidas disponíveis (precisa do bar)
+  bar() { return objectsOfKind(this.state, 'bar')[0] || null; }
+  availableDrinks() {
+    if (!this.bar()) return [];
+    return DRINKS.filter((d) => this.state.drinks[d.id]?.on && this.hasStock(d));
+  }
+  chooseDrink(g, m) {
+    const T = CUSTOMER_TYPES[g.type] || CUSTOMER_TYPES.comum;
+    if (Math.random() > T.drink) return null;
+    let list = this.availableDrinks();
+    if (m.kid) list = list.filter((d) => !d.alcohol);
+    if (!list.length) return null;
+    const w = list.map((d) => {
+      let x = Math.pow(d.price / this.state.drinks[d.id].price, 2 * T.priceSens);
+      if (T.drinks.includes(d.id)) x *= 3;
+      if (m.kid && (d.id === 'suco' || d.id === 'refri')) x *= 4;
+      return x;
+    });
+    let r = w.reduce((a, b) => a + b, 0) * Math.random();
+    for (let i = 0; i < list.length; i++) { r -= w[i]; if (r <= 0) return list[i]; }
+    return list[list.length - 1];
+  }
+  makeDrinks(a, g) {
+    const bar = this.bar();
+    const batch = this.drinkOrders.filter((d) => d.group === g && d.status === 'queued').slice(0, 4);
+    if (!batch.length) return;
+    for (const d of batch) { d.status = 'making'; d.by = a; }
+    bar.data._by = a; a.busy = true;
+    const prep = () => {
+      bar.data._busy = true;
+      const secs = batch.reduce((x, d) => x + d.drink.secs, 0) * 0.8 / a.emp.speed + 1;
+      this.doFor(a, secs, () => {
+        bar.data._busy = false; bar.data._by = null;
+        a.ch.carry = batch[0].drink.icon;
+        const give = () => this.doFor(a, 1, () => {
+          a.ch.carry = null; a.busy = false;
+          if (!this.groups.includes(g) || g.state === 'leaving') { for (const d of batch) d.status = 'done'; return; }
+          for (const d of batch) { d.status = 'done'; const mm = g.members[d.mi]; if (mm) mm.drink = d.drink; }
+          this.say(a.ch, pickLine(DRINK_LINES.serve));
+          this.say(g.members[batch[0].mi].ch, pickLine(DRINK_LINES.thanks), 1.2);
+        });
+        if (!this.groups.includes(g) || !g.table || !a.ch.goToObject(this.state, g.table, give)) give();
+      });
+    };
+    if (!a.ch.goToObject(this.state, bar, prep)) prep();
+  }
+
+  placeOrders(g, choices, drinks) {
     if (!this.groups.includes(g) || g.state === 'leaving') return;
     g.members.forEach((m, i) => {
-      let r = choices ? choices[i] : this.chooseDish(g);
-      if (r && !this.hasStock(r)) r = this.chooseDish(g);
+      const dk = drinks && drinks[i];
+      if (dk && this.consume(dk)) {
+        m.drinkWanted = dk; m.drinkPrice = this.state.drinks[dk.id].price;
+        this.drinkOrders.push({ group: g, mi: i, drink: dk, status: 'queued', by: null });
+      }
+    });
+    g.members.forEach((m, i) => {
+      let r = choices ? choices[i] : this.chooseDish(g, m);
+      if (r && !this.hasStock(r)) r = this.chooseDish(g, m);
       if (!r || !this.consume(r)) { m.failed = true; return; }
       m.recipe = r;
       m.price = this.state.menu[r.id].price;
@@ -823,7 +924,10 @@ export class Service {
     const reasons = [];
     const r = (w, p) => Math.min(1.5, w / (p * 60));
     const door = r(g.waits.door, PATIENCE.door), order = r(g.waits.order, PATIENCE.order), food = r(g.waits.food, PATIENCE.food), bill = r(g.waits.bill, PATIENCE.bill);
-    score -= door * 1.0 + order * 1.0 + food * 1.6 + bill * 0.8;
+    const T = CUSTOMER_TYPES[g.type] || CUSTOMER_TYPES.comum;
+    score -= (door * 1.0 + order * 1.0 + food * 1.6 + bill * 0.8) * (T.waitMult || 1);
+    if (T.waitMult && door + order + food < 0.8) { score += 0.4; reasons.push('Atendimento rápido'); }
+    if (T.grumpy) score -= T.grumpy;
     if (door > 0.6) reasons.push('Esperamos muito na porta');
     if (order > 0.6) reasons.push('Demoraram para anotar o pedido');
     if (food > 0.65) reasons.push('A comida demorou');
@@ -834,21 +938,30 @@ export class Service {
     if (q >= 4.3 && plates.length) reasons.push(`${pick(plates).plate.recipe.name} estava perfeito`);
     else if (q < 2.5) reasons.push('A comida estava sem graça');
     const failed = g.members.filter((m) => m.failed).length;
-    if (failed) { score -= failed * 1.2; reasons.push('Faltou prato do cardápio'); }
+    if (failed) {
+      score -= failed * 1.2;
+      const dietFail = g.members.find((m) => m.failed && m.diet);
+      reasons.push(dietFail ? `Não tinha opção ${DIETS[dietFail.diet].name.toLowerCase()}` : 'Faltou prato do cardápio');
+    }
+    if (T.loves && plates.some((m) => m.plate.recipe.cuisine === T.loves)) { score += 0.5; reasons.push('Comida típica deliciosa'); }
+    const wantedDrink = g.members.filter((m) => m.drinkWanted);
+    if (wantedDrink.some((m) => !m.drink)) { score -= 0.4; reasons.push('A bebida não chegou'); }
+    else if (wantedDrink.length) score += 0.15;
+    if (g.members.some((m) => m.regular && m.plate && m.plate.recipe.id === m.regular.fav)) score += 0.3;
     const h = hygiene(s);
     if (h < 70) { score -= (70 - h) / 30; reasons.push('O lugar estava sujo'); }
     const c = charm(s);
-    score += Math.min(0.6, c / 50);
+    score += Math.min(0.6, c / 50) * T.charmMult;
     if (c >= 15) reasons.push('Ambiente lindo');
     const ratio = plates.reduce((a, m) => a + m.price / m.plate.recipe.price, 0) / Math.max(1, plates.length);
-    if (ratio > 1.1) { score -= (ratio - 1.1) * 3; reasons.push('Achamos caro'); }
-    else if (ratio < 0.9) { score += 0.3; reasons.push('Preço justo'); }
+    if (ratio > 1.1) { score -= (ratio - 1.1) * 3 * T.priceSens; reasons.push('Achamos caro'); }
+    else if (ratio < 0.9) { score += 0.3 * T.priceSens; reasons.push('Preço justo'); }
     return { score: Math.max(1, Math.min(5, score)), reasons, q };
   }
   pay(g, by) {
     if (!this.groups.includes(g) || g.state === 'leaving') return;
     const s = this.state;
-    const total = g.members.filter((m) => m.plate).reduce((a, m) => a + m.price, 0);
+    const total = this.billTotal(g);
     const sat = g._sat || this.satisfaction(g);
     const tip = sat.score >= 4.3 ? Math.round(total * 0.1 * 100) / 100 : 0;
     s.cash += total + tip;
@@ -856,20 +969,48 @@ export class Service {
     s.month.customers += g.size; s.month.groups++;
     s.stats.served += g.size; s.stats.earned += total + tip;
     this.dayStat('revenue', total + tip); this.dayStat('customers', g.size);
-    const where = (this.register() && g.atRegister) ? this.register() : g.table;
+    const where = (this.register() && g.atRegister) ? this.register() : (g.table || g.members[0].ch);
     this.game.floatText(`+R$ ${Math.round(total + tip)}`, where, '#ffd166');
     const payer = g.members.find((m) => m.paying) || g.members[0];
     this.say(payer.ch, pickLine(sat.score >= 4 ? LINES.custByeHappy : sat.score >= 2.8 ? LINES.custByeMeh : LINES.custByeBad), by === 'player' ? 0 : 0.6);
     this.review(g, sat);
+    this.updateRegulars(g, sat);
     this.leave(g);
+  }
+  billTotal(g) {
+    return g.members.reduce((a, m) => a + (m.plate ? m.price : 0) + (m.drink ? (m.drinkPrice || 0) : 0), 0);
   }
   review(g, sat) {
     const s = this.state;
     const text = sat.reasons.length ? sat.reasons.slice(0, 2).join('. ') + '.' : pick(['Tudo certo, voltaremos!', 'Bom atendimento.', 'Gostamos bastante.']);
-    s.reviews.unshift({ t: Date.now(), score: Math.round(sat.score * 10) / 10, text, size: g.size });
+    const score = Math.round(sat.score * 10) / 10;
+    const reg = g.members.find((m) => m.regular)?.regular;
+    s.reviews.unshift({ t: Date.now(), score, text, size: g.size, type: g.type, critic: !!g.critic, regular: reg ? reg.name : null });
     s.reviews = s.reviews.slice(0, 60);
-    s.rep += (sat.score - s.rep) * 0.08;
+    const weight = g.critic ? CRITIC_WEIGHT : 1;
+    s.rep += (sat.score - s.rep) * Math.min(0.5, 0.08 * weight);
     s.rep = Math.max(1, Math.min(5, s.rep));
+    if (g.critic) this.game.toast(`📰 Um crítico gastronômico disfarçado comeu aqui e deu nota ${score.toFixed(1)}! ${score >= 4 ? 'Ótima notícia!' : score >= 3 ? 'Nada mal.' : 'Isso vai pesar na reputação...'}`);
+  }
+  updateRegulars(g, sat) {
+    const s = this.state;
+    s.regulars = s.regulars || [];
+    const back = g.members.find((m) => m.regular);
+    if (back) {
+      const r = back.regular;
+      r.visits = (r.visits || 1) + 1; r.last = Date.now();
+      if (sat.score < 3) {
+        r.mood = (r.mood || 0) - 1;
+        if (r.mood <= -1) { s.regulars = s.regulars.filter((x) => x !== r); this.game.toast(`💔 ${r.name} saiu chateado e não deve voltar mais.`); }
+      } else r.mood = Math.min(2, (r.mood || 0) + 1);
+      return;
+    }
+    if (g.critic || sat.score < REGULAR.joinScore || Math.random() > REGULAR.joinChance || s.regulars.length >= REGULAR.max) return;
+    const m = g.members.find((x) => !x.kid && x.plate);
+    if (!m) return;
+    const name = regularName();
+    s.regulars.push({ id: 'r' + Date.now().toString(36) + Math.floor(Math.random() * 1000), name, look: { ...m.ch.look }, type: g.type, fav: m.plate.recipe.id, visits: 1, last: Date.now(), mood: 1 });
+    this.game.toast(`⭐ ${name} adorou e virou cliente fiel! Vai voltar pedindo ${lower1(m.plate.recipe.name)}.`);
   }
   walkOut(g, why, lineKey) {
     const s = this.state;
@@ -890,6 +1031,7 @@ export class Service {
     }
     for (const o of this.orders) if (o.group === g && o.status === 'queued') o.status = 'done';
     this.orders = this.orders.filter((o) => o.group !== g || o.status === 'cooking' || o.status === 'carrying' || o.status === 'delivering');
+    this.drinkOrders = this.drinkOrders.filter((d) => d.group !== g || d.status === 'making');
     for (const p of objectsOfKind(this.state, 'counter')) if (p.data._plates) {
       const gone = p.data._plates.filter((o) => o.group === g);
       if (gone.length) this.toDirty(gone.length); // comida que ninguém comeu: prato volta sujo
@@ -898,7 +1040,7 @@ export class Service {
     let out = 0;
     g.members.forEach((m) => {
       m.sitting = false; m.slot = null;
-      if (Math.random() < 0.15 && m.seat) this.addDirt(m.seat.x, m.seat.y, 2);
+      if (Math.random() < 0.15 * ((CUSTOMER_TYPES[g.type] || {}).messy || 1) && m.seat) this.addDirt(m.seat.x, m.seat.y, 2);
       const gone = () => { if (++out === g.size) this.groups = this.groups.filter((x) => x !== g); };
       const ex = exitOf(this.state);
       if (!m.ch.goTo(this.state, ex.x, ex.y, gone)) gone();
@@ -923,14 +1065,16 @@ export class Service {
         return true;
       }
       if (g.state === 'waitOrder' && !g.claim) {
-        const choices = g.members.map(() => this.chooseDish(g));
-        g.members.forEach((m, i) => this.say(m.ch, choices[i] ? pickLine(LINES.custOrder(lower1(choices[i].name))) : pickLine(LINES.custOrderNone), i * 1.3));
-        this.placeOrders(g, choices);
+        const choices = g.members.map((m) => this.chooseDish(g, m));
+        const drinks = g.members.map((m) => this.chooseDrink(g, m));
+        g.members.forEach((m, i) => this.say(m.ch, choices[i] ? pickLine(LINES.custOrder(lower1(choices[i].name))) : (m.diet ? DIET_LINES.none[m.diet] : pickLine(LINES.custOrderNone)), i * 1.3));
+        this.placeOrders(g, choices, drinks);
         this.game.toast('📝 Pedido anotado!');
         return true;
       }
       if (g.state === 'waitBill' && !g.claim) { this.billTalk(null, g); this.pay(g, 'player'); return true; }
-      if (g.state === 'waitFood') { this.game.toast('Esse grupo está esperando a comida.'); return true; }
+      this.game.toast(this.groupInfo(g));
+      return true;
     }
     if (!obj) return false;
     const kind = kindOf(obj);
@@ -945,6 +1089,15 @@ export class Service {
       const gb = this.groups.find((x) => x.state === 'waitBill' && !x.claim && (x.atRegister || !this.register()));
       if (gb) { this.billTalk(null, gb); this.pay(gb, 'player'); return true; }
       this.game.toast('Ninguém esperando para pagar.');
+      return true;
+    }
+    if (kind === 'bar') {
+      const dq = this.drinkOrders.find((d) => d.status === 'queued');
+      if (!dq) { this.game.toast('Nenhuma bebida pedida no momento.'); return true; }
+      const g2 = dq.group;
+      const batch = this.drinkOrders.filter((d) => d.group === g2 && d.status === 'queued');
+      for (const d of batch) { d.status = 'done'; const mm = g2.members[d.mi]; if (mm) mm.drink = d.drink; }
+      this.game.toast(`🥤 ${batch.length} bebida(s) servida(s) na mesa ${this.tableNo(g2.table)}.`);
       return true;
     }
     if (kind === 'sink') {
@@ -1006,6 +1159,20 @@ export class Service {
     this.startCook(stove, order, 'player');
     this.game.toast(`🍳 Você começou: ${order.recipe.name}`);
     return true;
+  }
+
+  // ficha rápida do grupo (aparece ao tocar num cliente)
+  groupInfo(g) {
+    const T = CUSTOMER_TYPES[g.type] || CUSTOMER_TYPES.comum;
+    const parts = [`${T.icon} ${T.name}`, `${g.size} pessoa(s)`];
+    const reg = g.members.find((m) => m.regular);
+    if (reg) parts.push(`⭐ ${reg.regular.name} (cliente fiel)`);
+    const kids = g.members.filter((m) => m.kid).length;
+    if (kids) parts.push(`${kids} criança(s)`);
+    for (const m of g.members) if (m.diet) parts.push(`${DIETS[m.diet].icon} ${DIETS[m.diet].name.toLowerCase()}`);
+    const st = { waitSeat: 'esperando mesa', walkingIn: 'indo para a mesa', waitOrder: 'esperando pedir', waitFood: 'comendo / esperando comida', waitBill: 'esperando a conta', leaving: 'indo embora' }[g.state];
+    if (st) parts.push(st);
+    return parts.join(' · ');
   }
 
   // dono limpando sujeira no chão

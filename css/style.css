@@ -284,6 +284,12 @@ table.fin small { color: #8a6a4e; font-weight: 700; }
 .card-desc { font-size: 12px; color: #6b5440; }
 
 .more { display: grid; gap: 8px; }
+.diets { display: flex; gap: 4px; flex-wrap: wrap; margin: 2px 0; }
+.diet { font-size: 11px; font-weight: 800; background: #e6f4e8; color: #2f6b3c; border-radius: 99px; padding: 1px 7px; }
+.regulars { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.reg { background: #fff; border: 3px solid #ecdcc1; border-radius: 14px; padding: 8px 12px; display: flex; flex-direction: column; text-align: left; }
+.reg small { color: #8a6a4e; font-weight: 700; }
+.review.critic { border-color: #c9a35b; background: #fff8e6; }
 .more-item { display: flex; gap: 12px; align-items: center; text-align: left; background: #fff; border: 3px solid #ecdcc1; border-radius: 14px; padding: 10px 12px; }
 .mi-icon { font-size: 26px; }
 .mi-txt { display: flex; flex-direction: column; }

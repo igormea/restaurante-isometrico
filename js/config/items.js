@@ -37,6 +37,8 @@ export const ITEMS = [
     colors: { body: '#d5dbe1', trim: '#5b6370' }, capacity: 15, cycle: 90, desc: 'Lava 15 pratos a cada 1min30. O lavador só carrega e descarrega. Gasta energia e água.' },
   { id: 'lava_loucas_ind', name: 'Lava-louças Industrial', cat: 'cozinha', kind: 'dishwasher', price: 14000, theme: 'neutro', charm: 0,
     colors: { body: '#aeb9c4', trim: '#2b2f36' }, capacity: 30, cycle: 75, desc: 'Lava 30 pratos a cada 1min15. Para restaurantes cheios.' },
+  { id: 'bar_bebidas', name: 'Bar de Bebidas', cat: 'cozinha', kind: 'bar', price: 2400, theme: 'neutro', charm: 1,
+    colors: { body: '#6b4a32', top: '#d9c3a0', trim: '#c9a35b' }, desc: 'Onde o garçom prepara sucos, cafés, cervejas e caipirinhas. Sem ele, o restaurante não vende bebidas.' },
   { id: 'caixa_reg', name: 'Caixa Registradora', cat: 'cozinha', kind: 'register', price: 1200, theme: 'neutro', charm: 0,
     colors: { body: '#7a5233', top: '#e9dcc6', trim: '#3b3f47' }, desc: 'Onde os clientes pagam a conta.' },
 

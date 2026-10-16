@@ -15,7 +15,7 @@ const MAX_DAYS = 60;
 export function simulateOffline(game, from, to) {
   const s = game.state;
   from = Math.max(from, to - MAX_DAYS * 86400000);
-  const rep = { from, to, customers: 0, groups: 0, lost: 0, revenue: 0, burned: 0, dishes: {}, ingredients: 0, months: [], noCook: 0, holidayLost: 0, delivered: 0, noStock: 0, noPlates: 0 };
+  const rep = { from, to, customers: 0, groups: 0, lost: 0, revenue: 0, burned: 0, dishes: {}, ingredients: 0, months: [], noCook: 0, holidayLost: 0, delivered: 0, noStock: 0, noPlates: 0, drinks: 0 };
   let acc = 0;
   const tables = objectsOfKind(s, 'table').map((t) => seatsOf(s, t).length).filter((n) => n > 0);
   for (let t = from; t < to; t += STEP) {
@@ -77,6 +77,15 @@ export function simulateOffline(game, from, to) {
         s.month.water += COSTS.waterPerDish; s.month.dishes++;
       }
       if (!eaten) { rep.lost += 1; continue; }
+      // bebidas
+      for (let i = 0; i < size; i++) {
+        if (Math.random() > 0.65) continue;
+        const dl = game.service.availableDrinks();
+        if (!dl.length) break;
+        const dk = dl[Math.floor(Math.random() * dl.length)];
+        game.service.consume(dk);
+        paid += s.drinks[dk.id].price; rep.drinks++;
+      }
       s.cash += paid; s.month.revenue += paid; s.month.customers += size; s.month.groups++;
       s.stats.served += size; s.stats.earned += paid;
       rep.customers += size; rep.groups++; rep.revenue += paid;

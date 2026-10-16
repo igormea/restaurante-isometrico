@@ -146,6 +146,12 @@ export class Game {
   }
 
   // ---------- cardápio ----------
+  setDrink(id, on, price) {
+    const m = this.state.drinks[id];
+    if (on != null) m.on = on;
+    if (price != null) m.price = Math.max(1, Math.round(price));
+    this.save();
+  }
   setMenu(id, on, price) {
     const m = this.state.menu[id];
     if (on != null) m.on = on;

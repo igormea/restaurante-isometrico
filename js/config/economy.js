@@ -16,7 +16,7 @@ export const COSTS = {
   dishwasherWater: 0.35,   // R$ de água por ciclo
 };
 
-export const STOCK_BASE = 200;     // espaço do estoque sem geladeira extra
+export const STOCK_BASE = 320;     // espaço do estoque sem geladeira extra
 export const STOCK_PER_FRIDGE = 150;
 
 export const DEFAULT_SCHEDULE = {

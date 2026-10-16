@@ -67,4 +67,34 @@ export const LINES = {
   washerBreak: ['Ops! Quebrei um prato...', 'Ai, escorregou da mão!'],
 };
 
+// ---------- falas por tipo de cliente ----------
+export const TYPE_LINES = {
+  executivo: { arrive: ['Tô com pressa, pode ser rápido?', 'Tenho reunião daqui a pouco.'], eat: ['Rápido e bom, perfeito.', 'Deixa eu responder esse e-mail...'], late: ['Vou me atrasar pra reunião!', 'Não tenho o dia todo!'] },
+  familia:   { arrive: ['Mesa pra família, por favor!', 'Tem cadeirinha?'], eat: ['Come tudo, hein!', 'Não brinca com a comida!', 'Mãe, posso sobremesa?'], late: ['As crianças estão com fome...', 'Mãe, tô com fome!'] },
+  casal:     { arrive: ['Uma mesa pra dois, por favor.', 'Algo mais reservado?'], eat: ['Que lugar romântico.', 'Saúde! Ao nosso aniversário.', 'Hmm, prova o meu!'], late: ['Tá demorando, amor...'] },
+  turista:   { arrive: ['Hello! Mesa, por favor?', 'Comida típica, sim?'], eat: ['Muito bom! Very good!', 'Isso é bem brasileiro, né?', 'Vou postar foto disso!'], late: ['Is it coming?', 'Demora, sim?'] },
+  estudante: { arrive: ['Tem alguma promoção?', 'O que tem de mais em conta?'], eat: ['Valeu cada centavo.', 'Bora dividir a conta no Pix.'], late: ['Tenho aula daqui a pouco...'] },
+  chato:     { arrive: ['Espero que a mesa esteja limpa.', 'Ouvi falar desse lugar... vamos ver.'], eat: ['Hmm. Já comi melhor.', 'O sal tá um pouco demais.', 'Esse prato tá frio, não?'], late: ['Que serviço lento!', 'Vou anotar isso.'] },
+};
+
+export const REGULAR_LINES = {
+  hostHello: (name) => [`${name}! Que bom te ver de novo!`, `Olha só, ${name}! A mesa de sempre?`],
+  custHello: ['Saudade daqui!', 'Voltei, como prometido!'],
+  order: ['O de sempre, por favor!', 'Vou no meu favorito.'],
+  waiterKnows: (dish) => [`Já sei: ${dish}, né?`, `${dish} de sempre, saindo!`],
+  noFav: ['Acabou o meu prato favorito? Que pena...'],
+};
+
+export const DIET_LINES = {
+  ask: { veg: 'Sou vegetariano, o que tem sem carne?', gf: 'Tem algo sem glúten?', lf: 'Algum prato sem lactose?' },
+  none: { veg: 'Não tem nada vegetariano? Poxa...', gf: 'Nada sem glúten? Assim fica difícil.', lf: 'Nada sem lactose? Que pena.' },
+};
+
+export const DRINK_LINES = {
+  order: (d) => [`E ${d} pra beber.`, `Pra beber, ${d}.`, `Me traz ${d}?`],
+  serve: ['Suas bebidas!', 'Aqui, bem geladinho.', 'Bebidas na mesa!'],
+  thanks: ['Opa, valeu!', 'Bem gelada, ótimo!', 'Obrigado!'],
+  kid: ['Suco pra mim!', 'Eu quero refri!'],
+};
+
 export const pickLine = (list) => list[Math.floor(Math.random() * list.length)];

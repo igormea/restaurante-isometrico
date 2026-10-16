@@ -199,6 +199,7 @@ export function drawCharacter(ctx, x, y, look, t, opt = {}) {
   const by = y - lift - bob;
   ctx.save();
   if (opt.flip) { ctx.translate(x, 0); ctx.scale(-1, 1); ctx.translate(-x, 0); }
+  if (opt.scale && opt.scale !== 1) { ctx.translate(x, y - lift); ctx.scale(opt.scale, opt.scale); ctx.translate(-x, -(y - lift)); }
   // pernas
   if (!sitting) {
     const step = walking ? Math.sin(t * 10) * 4 : 0;
@@ -270,6 +271,12 @@ export function drawCharacter(ctx, x, y, look, t, opt = {}) {
     roundRect(ctx, x - 9, hy - 18, 18, 8, 2);
     blob(ctx, x - 6, hy - 22, 6, '#ffffff'); blob(ctx, x + 6, hy - 22, 6, '#ffffff'); blob(ctx, x, hy - 26, 7, '#ffffff');
     ctx.strokeStyle = '#e2e2e2'; ctx.beginPath(); ctx.moveTo(x - 9, hy - 14); ctx.lineTo(x + 9, hy - 14); ctx.stroke();
+  }
+  if (look.hat === 'sun') {
+    ctx.fillStyle = '#e9d29a';
+    ctx.beginPath(); ctx.ellipse(x, hy - 8, 19, 5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, hy - 9, 10, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = '#d1495b'; ctx.fillRect(x - 10, hy - 11, 20, 3);
   }
   if (look.hat === 'cap') {
     ctx.fillStyle = look.capColor || '#3d5a80';
@@ -698,6 +705,32 @@ export function drawItem(ctx, item, cx, cy, opt = {}) {
       }
       break;
     }
+    case 'bar': {
+      shadow(ctx, cx, cy + 2, 0.45, 0.2);
+      box(ctx, cx, cy, 0.86, 0.86, 38, 0, c.body);
+      poly(ctx, [P(cx, cy, -0.36, 0.43, 8), P(cx, cy, 0.36, 0.43, 8), P(cx, cy, 0.36, 0.43, 30), P(cx, cy, -0.36, 0.43, 30)], null, c.trim);
+      box(ctx, cx, cy, 0.96, 0.96, 6, 38, c.top);
+      // garrafas
+      const bottles = ['#3f8a4f', '#8a3a2e', '#c9a35b', '#2b5aa8', '#e9e2d0'];
+      bottles.forEach((col, i) => {
+        const [bx, by] = P(cx, cy, -0.3 + i * 0.12, -0.28, 44);
+        ctx.fillStyle = col; ctx.fillRect(bx - 3.5, by - 18, 7, 18);
+        ctx.fillRect(bx - 1.5, by - 25, 3, 7);
+        ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(bx - 2.5, by - 16, 2, 12);
+      });
+      // copos e máquina de café
+      for (const [dx, dy] of [[0.15, 0.15], [0.28, 0.05]]) {
+        const [gx, gy] = P(cx, cy, dx, dy, 44);
+        ctx.fillStyle = 'rgba(200,230,255,0.85)'; ctx.fillRect(gx - 4, gy - 10, 8, 10);
+        ctx.fillStyle = '#f2b134'; ctx.fillRect(gx - 4, gy - 5, 8, 5);
+      }
+      box(ctx, cx, cy, 0.22, 0.2, 18, 44, '#3b3f47', { ox: -0.22, oy: 0.18 });
+      if (opt.busy) {
+        const [sx, sy] = P(cx, cy, -0.22, 0.18, 64);
+        for (let k = 0; k < 3; k++) { const ph = (t * 0.8 + k / 3) % 1; ctx.fillStyle = `rgba(255,255,255,${0.5 * (1 - ph)})`; ctx.beginPath(); ctx.arc(sx + Math.sin(t * 2 + k) * 4, sy - ph * 20, 3 + ph * 4, 0, Math.PI * 2); ctx.fill(); }
+      }
+      break;
+    }
     case 'fridge': {
       shadow(ctx, cx, cy + 2, 0.42, 0.2);
       box(ctx, cx, cy, 0.8, 0.7, 96, 0, c.body);
@@ -747,7 +780,7 @@ export function drawItem(ctx, item, cx, cy, opt = {}) {
 export const KIND_HEIGHT = {
   stove: 70, counter: 60, table: 40, chair: 50, cushion: 15, plant: 75, lamp: 100, candle: 85,
   statue: 90, lantern: 75, bamboo: 120, bonsai: 85, cactus: 90, barrel: 45, pinata: 100, palm: 120,
-  surfboard: 100, chest: 45, fridge: 100, register: 65, sink: 70, dishwasher: 65,
+  surfboard: 100, chest: 45, fridge: 100, register: 65, sink: 70, dishwasher: 65, bar: 70,
 };
 
 // sujeira no chão

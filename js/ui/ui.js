@@ -1,7 +1,8 @@
 // Interface (painéis de administração, loja, avisos). Tudo em HTML por cima do jogo.
 import { Events } from '../core/events.js';
 import { ITEMS, CATEGORIES, THEMES, itemById } from '../config/items.js';
-import { RECIPES, CUISINES, INGREDIENTS, SUPPLIERS, recipeCost } from '../config/recipes.js';
+import { RECIPES, CUISINES, INGREDIENTS, SUPPLIERS, recipeCost, DRINKS, DIETS } from '../config/recipes.js';
+import { CUSTOMER_TYPES } from '../config/customers.js';
 import { ROLES, LEVELS, candidatesFor } from '../config/staff.js';
 import { STATES, CITIES, holidaysOf } from '../config/calendar.js';
 import { EXPANSIONS } from '../config/levels.js';
@@ -263,7 +264,9 @@ export class UI {
       tog.onclick = () => { g.setMenu(r.id, !m.on); this.openMenu(); };
       row.appendChild(el('div', 'r-icon', r.icon));
       const info = el('div', 'r-info');
+      const diets = Object.entries(DIETS).filter(([k]) => r[k]).map(([, d]) => `<span class="diet" title="${d.name}">${d.icon} ${d.name}</span>`).join('');
       info.appendChild(el('div', 'r-name', `${r.name} <small>${CUISINES[r.cuisine].icon} ${CUISINES[r.cuisine].name}</small>`));
+      if (diets) info.appendChild(el('div', 'diets', diets));
       const possible = Math.min(...Object.entries(r.ing).map(([k, q]) => Math.floor((s.stock[k]?.qty || 0) / q)));
       info.appendChild(el('div', 'r-meta', `Dificuldade ${'🔥'.repeat(r.difficulty)} · ⏱️ ${r.secs}s · estoque dá para <b>${possible}</b>`));
       info.appendChild(el('div', 'r-meta', `${Object.entries(r.ing).map(([k, q]) => `${INGREDIENTS[k].icon}${q}`).join(' ')} · custo ${fmtBRL(cost)}`));
@@ -282,6 +285,36 @@ export class UI {
       list.appendChild(row);
     }
     body.appendChild(list);
+    // bebidas
+    body.appendChild(el('h3', '', '🥤 Bebidas'));
+    const hasBar = g.service.bar();
+    if (!hasBar) body.appendChild(el('p', 'muted', 'Você precisa de um <b>Bar de Bebidas</b> (Loja → Cozinha e caixa) para vender bebidas.'));
+    const dlist = el('div', 'rows');
+    for (const d of DRINKS) {
+      const m = s.drinks[d.id];
+      const cost = recipeCost(d);
+      const row = el('div', 'mrow' + (m.on ? '' : ' off'));
+      const tog = el('button', 'toggle' + (m.on ? ' on' : ''), m.on ? 'No cardápio' : 'Fora');
+      tog.onclick = () => { g.setDrink(d.id, !m.on); this.openMenu(); };
+      row.appendChild(el('div', 'r-icon small', d.icon));
+      const info = el('div', 'r-info');
+      info.appendChild(el('div', 'r-name', `${d.name}${d.alcohol ? ' <small>🔞 alcoólica</small>' : ''}`));
+      const possible = Math.min(...Object.entries(d.ing).map(([k, q]) => Math.floor((s.stock[k]?.qty || 0) / q)));
+      info.appendChild(el('div', 'r-meta', `⏱️ ${d.secs}s no bar · custo ${fmtBRL(cost)} · estoque dá para <b>${possible}</b>`));
+      info.appendChild(el('div', 'r-meta strong', `Margem ${pct((m.price - cost) / m.price)} · sugerido ${fmtBRL0(d.price)}`));
+      row.appendChild(info);
+      const price = el('div', 'price');
+      const minus = el('button', 'pm', '−'), plus = el('button', 'pm', '+');
+      minus.setAttribute('aria-label', 'Baixar preço'); plus.setAttribute('aria-label', 'Subir preço');
+      const val = el('span', 'pval' + (m.price > d.price * 1.1 ? ' hi' : m.price < d.price * 0.9 ? ' lo' : ''), fmtBRL0(m.price));
+      minus.onclick = () => { g.setDrink(d.id, null, m.price - 1); this.openMenu(); };
+      plus.onclick = () => { g.setDrink(d.id, null, m.price + 1); this.openMenu(); };
+      price.append(minus, val, plus);
+      const side = el('div', 'mside'); side.append(tog, price);
+      row.appendChild(side);
+      dlist.appendChild(row);
+    }
+    body.appendChild(dlist);
     this.openModal('📋 Cardápio', body, 'wide');
   }
 
@@ -301,7 +334,7 @@ export class UI {
     }
     body.appendChild(sups);
     const sup = SUPPLIERS.find((x) => x.id === this.supplier);
-    const usedBy = new Set(RECIPES.filter((r) => s.menu[r.id].on).flatMap((r) => Object.keys(r.ing)));
+    const usedBy = new Set([...RECIPES.filter((r) => s.menu[r.id].on), ...DRINKS.filter((d) => s.drinks[d.id]?.on)].flatMap((r) => Object.keys(r.ing)));
     const list = el('div', 'rows');
     const entries = Object.entries(INGREDIENTS).sort((a, b) => usedBy.has(b[0]) - usedBy.has(a[0]));
     for (const [k, ing] of entries) {
@@ -496,10 +529,25 @@ export class UI {
     const s = this.game.state;
     const body = el('div', 'reviews');
     body.appendChild(el('div', 'rep-big', `<b>${s.rep.toFixed(1)}</b><span>${stars(s.rep)}</span><small>Reputação: quanto maior, mais clientes aparecem.</small>`));
+    const regs = s.regulars || [];
+    body.appendChild(el('h3', '', `⭐ Clientes fiéis (${regs.length})`));
+    if (!regs.length) body.appendChild(el('p', 'muted', 'Quem sai muito satisfeito pode virar cliente fiel e voltar sempre, pedindo o prato favorito.'));
+    else {
+      const rl = el('div', 'regulars');
+      for (const r of regs) {
+        const fav = RECIPES.find((x) => x.id === r.fav);
+        const mood = (r.mood || 0) >= 2 ? '😍' : (r.mood || 0) >= 1 ? '🙂' : '😐';
+        rl.appendChild(el('div', 'reg', `<b>${mood} ${r.name}</b><small>${CUSTOMER_TYPES[r.type]?.icon || ''} ${CUSTOMER_TYPES[r.type]?.name || ''} · favorito: ${fav ? fav.icon + ' ' + fav.name : '—'} · ${r.visits || 1} visita(s)</small>`));
+      }
+      body.appendChild(rl);
+    }
+    body.appendChild(el('h3', '', '💬 Últimas avaliações'));
     if (!s.reviews.length) body.appendChild(el('p', 'empty', 'Ainda sem avaliações. Elas aparecem quando os clientes vão embora.'));
     for (const r of s.reviews.slice(0, 30)) {
       const d = new Date(r.t);
-      body.appendChild(el('div', 'review', `<div class="rv-stars">${stars(r.score)} <small>${r.score.toFixed(1)}</small></div><div>${r.text}</div><small class="muted">Mesa de ${r.size} · ${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</small>`));
+      const T = CUSTOMER_TYPES[r.type];
+      const who = r.critic ? '📰 <b>Crítico gastronômico</b>' : r.regular ? `⭐ ${r.regular}` : T ? `${T.icon} ${T.name}` : '';
+      body.appendChild(el('div', 'review' + (r.critic ? ' critic' : ''), `<div class="rv-stars">${stars(r.score)} <small>${r.score.toFixed(1)}</small></div><div>${r.text}</div><small class="muted">${who ? who + ' · ' : ''}Mesa de ${r.size} · ${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</small>`));
     }
     this.openModal('⭐ Avaliações', body);
   }
@@ -595,7 +643,7 @@ export class UI {
       setTimeout(() => { armed = false; reset.textContent = 'Recomeçar do zero'; }, 4000);
     };
     body.appendChild(reset);
-    body.appendChild(el('p', 'muted', 'Protótipo v0.3 · o progresso fica salvo neste navegador.'));
+    body.appendChild(el('p', 'muted', 'Protótipo v0.4 · o progresso fica salvo neste navegador.'));
     this.openModal('⚙️ Ajustes', body);
   }
 
@@ -618,6 +666,7 @@ export class UI {
       r.lost ? `😠 Cerca de ${r.lost} clientes foram embora (faltou mesa, equipe ou comida)` : null,
       r.noCook ? `⚠️ Cerca de ${r.noCook} clientes sem atendimento: faltou cozinheiro ou garçom no turno` : null,
       r.noStock ? `📦 Cerca de ${r.noStock} clientes não comeram porque os ingredientes acabaram. Compre no Estoque!` : null,
+      r.drinks ? `🥤 ${r.drinks} bebidas vendidas` : null,
       r.noPlates ? `🍽️ ${r.noPlates} pratos não saíram porque faltou louça limpa` : null,
       r.holidayLost ? `🎉 Cerca de ${r.holidayLost} clientes vieram no feriado e não havia ninguém para atender` : null,
       r.delivered ? `🚚 ${r.delivered} entrega(s) de fornecedor recebida(s)` : null,

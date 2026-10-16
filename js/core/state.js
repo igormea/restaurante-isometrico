@@ -2,7 +2,7 @@
 // Por ser JSON puro, o mesmo formato poderá ir para um servidor no futuro (modo online).
 import { itemById } from '../config/items.js';
 import { EXPANSIONS } from '../config/levels.js';
-import { RECIPES, INGREDIENTS } from '../config/recipes.js';
+import { RECIPES, INGREDIENTS, DRINKS } from '../config/recipes.js';
 import { START_CASH, DEFAULT_SCHEDULE, STOCK_BASE, STOCK_PER_FRIDGE, START_PLATES } from '../config/economy.js';
 
 export const SAVE_VERSION = 2;
@@ -43,7 +43,10 @@ export function createNewState(now, monthKey) {
     days: {},
     dirt: [],
     dishes: { clean: START_PLATES, dirty: 0, broken: 0 },
+    drinks: {},
+    regulars: [],
     v3: true,
+    v4: true,
     lastTick: now,
     createdAt: now,
     stats: { served: 0, earned: 0, cooked: 0 },
@@ -56,6 +59,7 @@ export function createNewState(now, monthKey) {
   add('vaso_planta', 7, 0);
   add('caixa_reg', 0, 2);
   add('pia', 0, 0);
+  add('bar_bebidas', 6, 0);
   // mesa de 4 lugares
   add('mesa_simples', 3, 4);
   add('cadeira_simples', 2, 4); add('cadeira_simples', 4, 4); add('cadeira_simples', 3, 3); add('cadeira_simples', 3, 5);
@@ -78,7 +82,15 @@ export function createNewState(now, monthKey) {
   // estoque inicial
   for (const k of Object.keys(INGREDIENTS)) s.stock[k] = { qty: 0, q: 1 };
   for (const k of ['arroz', 'feijao', 'carne', 'queijo', 'legumes', 'tomate', 'massa', 'pao', 'farinha', 'ovo', 'chocolate']) s.stock[k] = { qty: 14, q: 1 };
+  addDrinkStart(s);
   return s;
+}
+
+// bebidas que entraram na v0.4
+const DRINK_START = { agua: 12, refri: 12, laranja: 18, cafe: 10, cerveja: 12, cachaca: 6, limao: 12 };
+function addDrinkStart(s) {
+  for (const d of DRINKS) if (!s.drinks[d.id]) s.drinks[d.id] = { on: true, price: d.price };
+  for (const [k, q] of Object.entries(DRINK_START)) s.stock[k] = { qty: (s.stock[k]?.qty || 0) + q, q: 1 };
 }
 
 // funcionários que entraram na v0.3 (lavador e zelador)
@@ -107,6 +119,22 @@ export function migrate(data) {
     for (const e of STARTER_V3(Date.now())) if (!data.staff.some((x) => x.role === e.role)) data.staff.push(e);
     data._v3News = true;
   }
+  // chegada da v0.4: bar de bebidas, bebidas no cardápio e clientes fiéis
+  if (!data.v4) {
+    data.v4 = true;
+    data.drinks = data.drinks || {};
+    data.regulars = data.regulars || [];
+    addDrinkStart(data);
+    const n = EXPANSIONS[data.expansion].size;
+    if (!data.objects.some((o) => itemById(o.item).kind === 'bar')) {
+      const taken = (x, y) => data.objects.some((o) => o.x === x && o.y === y);
+      let spot = null;
+      for (let y = 0; y < n && !spot; y++) for (let x = 0; x < n && !spot; x++) if (!taken(x, y) && !(x === 1 && y >= n - 2)) spot = { x, y };
+      if (spot) data.objects.push({ uid: uid(), item: 'bar_bebidas', x: spot.x, y: spot.y, data: {} });
+    }
+    data._v4News = true;
+  }
+  for (const d of DRINKS) if (!data.drinks[d.id]) data.drinks[d.id] = { on: false, price: d.price };
   return data;
 }
 
