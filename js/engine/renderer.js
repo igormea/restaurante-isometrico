@@ -1,6 +1,6 @@
 // Monta a cena: fundo, piso, paredes, móveis, pessoas e balões de informação.
 import { TW, TH, WALL_H, camera, tileCenter, isoToWorld } from './iso.js';
-import { drawItem, drawFloorTile, drawWallSegment, drawCharacter, KIND_HEIGHT, roundRect, drawDirt, drawSmoke, drawSpeech } from './draw.js';
+import { drawItem, drawFloorTile, drawWallSegment, drawCharacter, KIND_HEIGHT, roundRect, drawDirt, drawSmoke, drawSpeech, drawFood } from './draw.js';
 import { itemById } from '../config/items.js';
 import { roomSize, doorOf, kindOf } from '../core/state.js';
 import { tableFor } from '../systems/service.js';
@@ -222,7 +222,7 @@ export class Renderer {
   drawObject(o, t, tableDishes) {
     const item = itemById(o.item);
     const c = tileCenter(o.x, o.y);
-    const opt = { t };
+    const opt = { t, gx: o.x, gy: o.y };
     const k = item.kind;
     if (k === 'stove') opt.stove = { state: o.data._order && o.data._start != null ? 'cooking' : 'idle' };
     if (k === 'counter') opt.plates = (o.data._plates || []).map((p) => p.recipe.icon);
@@ -253,8 +253,7 @@ export class Renderer {
       ctx.beginPath(); ctx.arc(0, 0, r - 2, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0, opt.ring)); ctx.stroke();
     }
     if (opt.hand) { ctx.strokeStyle = '#f2b134'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, r + 3, 0, Math.PI * 2); ctx.stroke(); }
-    ctx.font = `${Math.round(r * 1.0)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(icon, 0, 1);
+    drawFood(ctx, icon, 0, 1, r * 1.3);
     if (opt.badge) {
       ctx.fillStyle = '#5a3d2b'; ctx.beginPath(); ctx.arc(r * 0.8, -r * 0.7, 9, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Nunito, sans-serif'; ctx.fillText(opt.badge, r * 0.8, -r * 0.7 + 1);
@@ -277,8 +276,7 @@ export class Renderer {
         ctx.fillStyle = 'rgba(60,35,15,0.55)'; roundRect(ctx, c.x - w / 2 - 2, top - 2, w + 4, h + 4, 7);
         ctx.fillStyle = '#fff1d6'; roundRect(ctx, c.x - w / 2, top, w, h, 6);
         ctx.fillStyle = d._by === 'player' ? '#7ad48f' : '#f4a261'; roundRect(ctx, c.x - w / 2, top, Math.max(8, w * p), h, 6);
-        ctx.font = '20px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(d._order.recipe.icon, c.x - w / 2 - 14, top + 6);
+        drawFood(ctx, d._order.recipe.icon, c.x - w / 2 - 14, top + 6, 24);
       } else if (!sv.onDuty('cozinheiro').length && sv.orders.some((x) => x.status === 'queued')) {
         this.bubble(c.x, top + 4, '🍳', { r: 16, pulse: true, hand: true });
       }

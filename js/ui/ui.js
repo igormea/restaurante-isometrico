@@ -3,6 +3,15 @@ import { Events } from '../core/events.js';
 import { ITEMS, CATEGORIES, THEMES, itemById } from '../config/items.js';
 import { RECIPES, CUISINES, INGREDIENTS, SUPPLIERS, recipeCost, DRINKS, DIETS } from '../config/recipes.js';
 import { CUSTOMER_TYPES } from '../config/customers.js';
+import { FOOD } from '../config/sprites.js';
+
+// ícone de comida como imagem (cai no emoji se não houver)
+const foodIcon = (icon) => {
+  const n = FOOD[icon];
+  if (!n) return icon;
+  const p = `assets/food/${n}.png`;
+  return `<img class="food-img" src="${(window.__ASSETS && window.__ASSETS[p]) || p}" alt="${icon}">`;
+};
 import { ROLES, LEVELS, candidatesFor } from '../config/staff.js';
 import { STATES, CITIES, holidaysOf } from '../config/calendar.js';
 import { EXPANSIONS } from '../config/levels.js';
@@ -262,7 +271,7 @@ export class UI {
       const row = el('div', 'mrow' + (m.on ? '' : ' off'));
       const tog = el('button', 'toggle' + (m.on ? ' on' : ''), m.on ? 'No cardápio' : 'Fora');
       tog.onclick = () => { g.setMenu(r.id, !m.on); this.openMenu(); };
-      row.appendChild(el('div', 'r-icon', r.icon));
+      row.appendChild(el('div', 'r-icon', foodIcon(r.icon)));
       const info = el('div', 'r-info');
       const diets = Object.entries(DIETS).filter(([k]) => r[k]).map(([, d]) => `<span class="diet" title="${d.name}">${d.icon} ${d.name}</span>`).join('');
       info.appendChild(el('div', 'r-name', `${r.name} <small>${CUISINES[r.cuisine].icon} ${CUISINES[r.cuisine].name}</small>`));
@@ -296,7 +305,7 @@ export class UI {
       const row = el('div', 'mrow' + (m.on ? '' : ' off'));
       const tog = el('button', 'toggle' + (m.on ? ' on' : ''), m.on ? 'No cardápio' : 'Fora');
       tog.onclick = () => { g.setDrink(d.id, !m.on); this.openMenu(); };
-      row.appendChild(el('div', 'r-icon small', d.icon));
+      row.appendChild(el('div', 'r-icon small', foodIcon(d.icon)));
       const info = el('div', 'r-info');
       info.appendChild(el('div', 'r-name', `${d.name}${d.alcohol ? ' <small>🔞 alcoólica</small>' : ''}`));
       const possible = Math.min(...Object.entries(d.ing).map(([k, q]) => Math.floor((s.stock[k]?.qty || 0) / q)));
@@ -480,7 +489,8 @@ export class UI {
   drawPreview(cv, item) {
     const ctx = cv.getContext('2d');
     ctx.save();
-    const tall = ['palm', 'bamboo', 'lamp', 'surfboard', 'pinata', 'statue', 'candle', 'fridge'].includes(item.kind);
+    const tall = ['palm', 'bamboo', 'lamp', 'surfboard', 'pinata', 'statue', 'candle', 'fridge'].includes(item.kind)
+      || ['lava_loucas_ind', 'estante', 'cabideiro', 'luminaria', 'caixa_som'].includes(item.id);
     const s = item.kind === 'floor' ? 1.0 : item.kind === 'wall' ? 1.1 : tall ? 1.45 : 1.9;
     ctx.translate(item.kind === 'wall' ? 140 : 110, item.kind === 'floor' ? 70 : item.kind === 'wall' ? 190 : tall ? 190 : 165);
     ctx.scale(s, s);
@@ -580,6 +590,7 @@ export class UI {
     body.appendChild(el('p', '', 'Em breve você vai poder:'));
     body.appendChild(el('ul', 'lv-list', ['👥 Adicionar amigos', '🚪 Visitar o restaurante deles', '🤝 Ajudar na cozinha e no salão', '🎁 Trocar ingredientes e presentes'].map((t) => `<li>${t}</li>`).join('')));
     body.appendChild(el('p', 'muted', `Seu código de jogador: <code>${this.game.state.playerId}</code>`));
+    body.appendChild(el('p', 'muted', 'Imagens de móveis e comidas: Kenney (kenney.nl), licença CC0.'));
     body.appendChild(el('p', 'muted', Social.status()));
     this.openModal('🤝 Amigos', body, 'center');
   }
@@ -643,7 +654,7 @@ export class UI {
       setTimeout(() => { armed = false; reset.textContent = 'Recomeçar do zero'; }, 4000);
     };
     body.appendChild(reset);
-    body.appendChild(el('p', 'muted', 'Protótipo v0.4 · o progresso fica salvo neste navegador.'));
+    body.appendChild(el('p', 'muted', 'Protótipo v0.5 · o progresso fica salvo neste navegador.'));
     this.openModal('⚙️ Ajustes', body);
   }
 

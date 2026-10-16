@@ -49,6 +49,15 @@ title = re.search(r'<title>(.*?)</title>', html).group(1)
 body = re.search(r'<body[^>]*>(.*)</body>', html, re.S).group(1)
 body = re.sub(r'<script[^>]*src="js/main.js"[^>]*></script>', '', body)
 fonts = re.search(r'<link href="https://fonts.googleapis.com[^>]*>', html).group(0)
+# imagens embutidas (data URI) para a versão de arquivo único
+import base64, glob
+assets = {}
+for f in sorted(glob.glob(os.path.join(ROOT, 'assets', '**', '*.png'), recursive=True)):
+    rel = os.path.relpath(f, ROOT).replace(os.sep, '/')
+    assets[rel] = 'data:image/png;base64,' + base64.b64encode(open(f, 'rb').read()).decode()
+import json as _json
+assets_js = 'window.__ASSETS = ' + _json.dumps(assets) + ';'
+
 page = f"""<title>{title}</title>
 {fonts}
 <style>
@@ -56,6 +65,7 @@ page = f"""<title>{title}</title>
 </style>
 {body}
 <script>
+{assets_js}
 document.body.dataset.mode = 'play';
 {js}
 </script>

@@ -2,6 +2,8 @@
 // No futuro, cada "kind" pode ser trocado por uma imagem (sprite) desenhada por um artista
 // sem mexer no resto do jogo: basta trocar a função correspondente aqui.
 import { TW, TH, WALL_H } from './iso.js';
+import { furnitureImg, foodImg } from './assets.js';
+import { FURNITURE } from '../config/sprites.js';
 
 // ---------- utilidades de cor ----------
 function hexToRgb(hex) {
@@ -236,8 +238,7 @@ export function drawCharacter(ctx, x, y, look, t, opt = {}) {
   if (opt.carry) {
     ctx.fillStyle = '#ffffff';
     ctx.beginPath(); ctx.ellipse(x + 13, by - 26, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.font = '14px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(opt.carry, x + 13, by - 30);
+    drawFood(ctx, opt.carry, x + 13, by - 30, 18);
   }
   if (opt.tool) {
     ctx.font = '22px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -333,9 +334,164 @@ export { roundRect };
 
 // ---------- itens ----------
 // opt: { t: tempo, stove: {state, recipe}, dish: {icon, servings}, facing: {dx,dy} }
+// comida/bebida: imagem do pacote, ou o emoji se não houver imagem
+export function drawFood(ctx, icon, x, y, size) {
+  const img = foodImg(icon);
+  if (img) {
+    const s = size / Math.max(img.width, img.height);
+    const w = img.width * s, h = img.height * s;
+    ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
+    return;
+  }
+  ctx.font = `${Math.round(size * 0.85)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(icon, x, y);
+}
+
+// direção da imagem: cadeira vira para a mesa; móvel na parede da esquerda olha para a direita
+const CHAIR_DIR = { '1,0': 'SE', '0,1': 'SW', '0,-1': 'NE', '-1,0': 'NW' };
+function spriteDir(spec, opt) {
+  if (spec.chair) { const f = opt.facing || { dx: 1, dy: 0 }; return CHAIR_DIR[`${f.dx},${f.dy}`] || 'SE'; }
+  if (opt.gx === 0 && opt.gy > 0) return 'SE';
+  return 'SW';
+}
+
+// desenha um móvel com imagem; devolve false se não houver imagem (aí usa o desenho em código)
+function drawSpriteItem(ctx, item, cx, cy, opt) {
+  const spec = FURNITURE[item.id];
+  if (!spec) return false;
+  const img = furnitureImg(spec.sprite, spriteDir(spec, opt));
+  if (!img) return false;
+  const sc = (spec.scale || 1) * 0.84; // os renders do pacote são um pouco maiores que o nosso quadrado
+  const w = img.width * sc, h = img.height * sc;
+  const t = opt.t || 0;
+  shadow(ctx, cx, cy + 2, Math.min(0.45, w / TW * 0.42), 0.18);
+  ctx.drawImage(img, cx - w / 2, cy + w * 0.27 - h, w, h);
+  const z = Math.max(8, h - w * 0.55); // altura do tampo
+  const P2 = (dx, dy, zz = z) => P(cx, cy, dx, dy, zz);
+  switch (item.kind) {
+    case 'stove': {
+      if (opt.stove && opt.stove.state === 'cooking') {
+        for (const [dx, dy] of [[-0.14, -0.14], [0.14, -0.14], [-0.14, 0.14], [0.14, 0.14]]) {
+          const [bx, by] = P2(dx, dy);
+          glow(ctx, bx, by, 12, 'rgba(255,120,40,0.75)');
+        }
+        cylinder(ctx, cx, cy, 0.22, 16, z, '#c0c6cf', { top: '#e7ebf0' });
+        const [px, py] = P2(0, 0, z + 16);
+        ctx.fillStyle = '#c5582f';
+        ctx.beginPath(); ctx.ellipse(px, py, 13, 6, 0, 0, Math.PI * 2); ctx.fill();
+        for (let k = 0; k < 3; k++) {
+          const ph = (t * 0.6 + k / 3) % 1;
+          ctx.fillStyle = `rgba(255,255,255,${0.55 * (1 - ph)})`;
+          ctx.beginPath(); ctx.arc(px + Math.sin((t + k) * 2) * 6, py - 8 - ph * 30, 5 + ph * 6, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      break;
+    }
+    case 'counter': {
+      if (opt.plates && opt.plates.length) {
+        const offs = [[-0.18, -0.18], [0.18, -0.18], [-0.18, 0.18], [0.18, 0.18]];
+        opt.plates.slice(0, 4).forEach((icon, i) => {
+          const [px, py] = P2(offs[i][0], offs[i][1]);
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath(); ctx.ellipse(px, py, 12, 6, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = '#d6d0c4'; ctx.lineWidth = 1; ctx.stroke();
+          drawFood(ctx, icon, px, py - 5, 20);
+        });
+      }
+      break;
+    }
+    case 'sink': {
+      if (opt.washing) {
+        const [bx, by] = P2(0, 0);
+        for (let k = 0; k < 6; k++) {
+          const a = t * 2 + k;
+          ctx.fillStyle = 'rgba(255,255,255,0.9)';
+          ctx.beginPath(); ctx.arc(bx + Math.cos(a) * 10, by - 2 + Math.sin(a * 1.3) * 4 - (k % 3) * 3, 3 + (k % 2), 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      const n = Math.min(14, opt.pile || 0);
+      if (n) {
+        const [px, py] = P2(0.28, 0.3);
+        for (let k = 0; k < n; k++) {
+          ctx.fillStyle = k % 2 ? '#efe6d6' : '#f7f1e6';
+          ctx.beginPath(); ctx.ellipse(px, py - k * 2.6, 12, 5, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = 'rgba(160,100,50,0.5)';
+          ctx.beginPath(); ctx.arc(px - 3 + (k % 3) * 2, py - k * 2.6 - 1, 1.8, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      break;
+    }
+    case 'dishwasher': {
+      if (opt.running) {
+        const [lx, ly] = P2(0, 0);
+        blob(ctx, lx, ly, 3, '#5fd38a');
+        for (let k = 0; k < 4; k++) {
+          const ph = (t * 0.7 + k / 4) % 1;
+          ctx.fillStyle = `rgba(230,240,255,${0.6 * (1 - ph)})`;
+          ctx.beginPath(); ctx.arc(lx + Math.sin((t + k) * 2) * 8, ly - 6 - ph * 30, 4 + ph * 6, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      break;
+    }
+    case 'table': {
+      if (opt.stain) {
+        const [sx2, sy2] = P2(-0.08, 0.1);
+        ctx.fillStyle = 'rgba(160,60,40,0.45)';
+        ctx.beginPath(); ctx.ellipse(sx2, sy2, 11, 5, 0.3, 0, Math.PI * 2); ctx.fill();
+      }
+      if (opt.dishes && opt.dishes.length) {
+        for (const dsh of opt.dishes) {
+          const [px, py] = P2(dsh.dx * 0.2, dsh.dy * 0.2);
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath(); ctx.ellipse(px, py, 10, 5, 0, 0, Math.PI * 2); ctx.fill();
+          if (dsh.icon) drawFood(ctx, dsh.icon, px, py - 4, 17);
+        }
+      }
+      if (opt.dirty) {
+        const spots = [[-0.14, -0.1], [0.14, 0.1], [0.05, -0.18], [-0.18, 0.16], [0.2, -0.16], [0, 0.05]].slice(0, Math.max(1, Math.min(6, opt.dirtyN || 3)));
+        for (const [dx, dy] of spots) {
+          const [px, py] = P2(dx, dy);
+          ctx.fillStyle = '#f4efe6';
+          ctx.beginPath(); ctx.ellipse(px, py, 9, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#b5835a';
+          ctx.beginPath(); ctx.arc(px - 2, py, 1.8, 0, Math.PI * 2); ctx.arc(px + 3, py - 1, 1.4, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      break;
+    }
+    case 'bar': {
+      const coffee = furnitureImg('kitchenCoffeeMachine', 'SW');
+      const bottles = ['#3f8a4f', '#8a3a2e', '#c9a35b', '#2b5aa8'];
+      bottles.forEach((col, i) => {
+        const [bx, by] = P2(-0.28 + i * 0.1, -0.22);
+        ctx.fillStyle = col; ctx.fillRect(bx - 3, by - 16, 6, 16); ctx.fillRect(bx - 1.3, by - 22, 2.6, 6);
+        ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(bx - 2, by - 14, 1.6, 10);
+      });
+      if (coffee) { const [mx, my] = P2(0.18, 0.12); ctx.drawImage(coffee, mx - coffee.width / 2, my - coffee.height + 8); }
+      if (opt.busy) {
+        const [sx, sy] = P2(0.18, 0.12, z + 30);
+        for (let k = 0; k < 3; k++) { const ph = (t * 0.8 + k / 3) % 1; ctx.fillStyle = `rgba(255,255,255,${0.5 * (1 - ph)})`; ctx.beginPath(); ctx.arc(sx + Math.sin(t * 2 + k) * 4, sy - ph * 20, 3 + ph * 4, 0, Math.PI * 2); ctx.fill(); }
+      }
+      break;
+    }
+    case 'register': {
+      box(ctx, cx, cy, 0.34, 0.28, 12, z, '#3b3f47', { ox: -0.05, oy: -0.05 });
+      const [sx, sy] = P2(-0.05, -0.05, z + 12);
+      ctx.fillStyle = '#2b2f36';
+      ctx.beginPath(); ctx.moveTo(sx - 11, sy); ctx.lineTo(sx + 11, sy - 6); ctx.lineTo(sx + 11, sy - 19); ctx.lineTo(sx - 11, sy - 13); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#7fe0a0';
+      ctx.beginPath(); ctx.moveTo(sx - 8, sy - 3); ctx.lineTo(sx + 8, sy - 7); ctx.lineTo(sx + 8, sy - 16); ctx.lineTo(sx - 8, sy - 12); ctx.closePath(); ctx.fill();
+      break;
+    }
+    default: break;
+  }
+  return true;
+}
+
 export function drawItem(ctx, item, cx, cy, opt = {}) {
   const c = item.colors || {};
   const t = opt.t || 0;
+  if (drawSpriteItem(ctx, item, cx, cy, opt)) return;
   switch (item.kind) {
     case 'stove': {
       shadow(ctx, cx, cy + 2, 0.45, 0.2);
@@ -388,8 +544,7 @@ export function drawItem(ctx, item, cx, cy, opt = {}) {
           ctx.fillStyle = '#ffffff';
           ctx.beginPath(); ctx.ellipse(px, py, 13, 6.5, 0, 0, Math.PI * 2); ctx.fill();
           ctx.strokeStyle = '#d6d0c4'; ctx.lineWidth = 1; ctx.stroke();
-          ctx.font = '16px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-          ctx.fillText(icon, px, py - 5);
+          drawFood(ctx, icon, px, py - 5, 20);
         });
       }
       break;
@@ -413,7 +568,7 @@ export function drawItem(ctx, item, cx, cy, opt = {}) {
           const [px, py] = P(cx, cy, dsh.dx * 0.22, dsh.dy * 0.22, zt2);
           ctx.fillStyle = '#ffffff';
           ctx.beginPath(); ctx.ellipse(px, py, 11, 5.5, 0, 0, Math.PI * 2); ctx.fill();
-          if (dsh.icon) { ctx.font = '14px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(dsh.icon, px, py - 4); }
+          if (dsh.icon) drawFood(ctx, dsh.icon, px, py - 4, 17);
         }
       }
       if (opt.stain) {
@@ -771,8 +926,9 @@ export function drawItem(ctx, item, cx, cy, opt = {}) {
       ctx.restore();
       break;
     }
+    case 'prop':
     default:
-      box(ctx, cx, cy, 0.6, 0.6, 30, 0, '#cccccc');
+      box(ctx, cx, cy, 0.5, 0.5, 40, 0, c.body || '#c9a77c');
   }
 }
 
@@ -780,7 +936,7 @@ export function drawItem(ctx, item, cx, cy, opt = {}) {
 export const KIND_HEIGHT = {
   stove: 70, counter: 60, table: 40, chair: 50, cushion: 15, plant: 75, lamp: 100, candle: 85,
   statue: 90, lantern: 75, bamboo: 120, bonsai: 85, cactus: 90, barrel: 45, pinata: 100, palm: 120,
-  surfboard: 100, chest: 45, fridge: 100, register: 65, sink: 70, dishwasher: 65, bar: 70,
+  surfboard: 100, chest: 45, fridge: 100, register: 65, sink: 70, dishwasher: 65, bar: 70, prop: 90,
 };
 
 // sujeira no chão

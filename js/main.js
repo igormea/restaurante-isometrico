@@ -7,8 +7,11 @@ import { screenToIso, camera } from './engine/iso.js';
 import { UI } from './ui/ui.js';
 import { ROLES, LEVELS } from './config/staff.js';
 import { CUISINES } from './config/recipes.js';
+import { loadAssets } from './engine/assets.js';
 
 async function boot() {
+  const loading = document.getElementById('loading');
+  await loadAssets((n, total) => { if (loading) loading.textContent = `Abrindo o restaurante… ${Math.round((n / total) * 100)}%`; });
   const game = new Game(new LocalSaveService());
   await game.init();
   const canvas = document.getElementById('game');

@@ -92,6 +92,16 @@ export const ITEMS = [
   { id: 'boia', name: 'Baú do Tesouro', cat: 'decor', kind: 'chest', price: 5100, theme: 'praiano', charm: 8,
     colors: { wood: '#8a5a33', metal: '#e0b84a' } },
 
+  // ---------- Decoração moderna (imagens do Kenney) ----------
+  { id: 'poltrona', name: 'Poltrona', cat: 'decor', kind: 'prop', price: 1600, theme: 'neutro', charm: 3, colors: { body: '#e05a4a' } },
+  { id: 'estante', name: 'Estante de Livros', cat: 'decor', kind: 'prop', price: 1900, theme: 'classico', charm: 4, colors: { body: '#c9935f' } },
+  { id: 'tv', name: 'TV de Tela Plana', cat: 'decor', kind: 'prop', price: 2800, theme: 'neutro', charm: 3, colors: { body: '#3b3f47' } },
+  { id: 'caixa_som', name: 'Caixa de Som', cat: 'decor', kind: 'prop', price: 1200, theme: 'neutro', charm: 2, colors: { body: '#c9935f' } },
+  { id: 'radio', name: 'Rádio Antigo', cat: 'decor', kind: 'prop', price: 700, theme: 'classico', charm: 2, colors: { body: '#6b4a32' } },
+  { id: 'cabideiro', name: 'Cabideiro', cat: 'decor', kind: 'prop', price: 650, theme: 'classico', charm: 1, colors: { body: '#c9935f' } },
+  { id: 'banqueta', name: 'Banqueta Alta', cat: 'decor', kind: 'prop', price: 500, theme: 'neutro', charm: 1, colors: { body: '#e05a4a' } },
+  { id: 'lixeira', name: 'Lixeira', cat: 'decor', kind: 'prop', price: 300, theme: 'neutro', charm: 0, colors: { body: '#9aa3ad' } },
+
   // ---------- Pisos (pintados por quadrado) ----------
   { id: 'piso_bege', name: 'Piso Bege', cat: 'piso', kind: 'floor', price: 0, theme: 'neutro', charm: 0,
     floor: { pattern: 'checker', a: '#efe6d6', b: '#e4d8c3' } },

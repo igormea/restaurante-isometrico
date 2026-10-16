@@ -332,3 +332,4 @@ table.fin small { color: #8a6a4e; font-weight: 700; }
   #banner span { flex-basis: 100%; }
   #modebar { top: 200px; }
 }
+.food-img { width: 80%; height: 80%; object-fit: contain; }
