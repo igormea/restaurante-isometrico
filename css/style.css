@@ -203,6 +203,7 @@ code { background: #f3e5cc; padding: 2px 6px; border-radius: 6px; font-size: 12p
 .pill.cash b { color: #2f8a4c; font-variant-numeric: tabular-nums; }
 .pill.cash.neg b { color: var(--red); }
 .pill.small { font-size: 15px; padding: 5px 10px; }
+.pill.small.neg b { color: var(--red); }
 
 #banner {
   position: fixed; left: 50%; top: 76px; transform: translateX(-50%); display: none;

@@ -15,7 +15,7 @@ const MAX_DAYS = 60;
 export function simulateOffline(game, from, to) {
   const s = game.state;
   from = Math.max(from, to - MAX_DAYS * 86400000);
-  const rep = { from, to, customers: 0, groups: 0, lost: 0, revenue: 0, burned: 0, dishes: {}, ingredients: 0, months: [], noCook: 0, holidayLost: 0, delivered: 0, noStock: 0 };
+  const rep = { from, to, customers: 0, groups: 0, lost: 0, revenue: 0, burned: 0, dishes: {}, ingredients: 0, months: [], noCook: 0, holidayLost: 0, delivered: 0, noStock: 0, noPlates: 0 };
   let acc = 0;
   const tables = objectsOfKind(s, 'table').map((t) => seatsOf(s, t).length).filter((n) => n > 0);
   for (let t = from; t < to; t += STEP) {
@@ -35,13 +35,25 @@ export function simulateOffline(game, from, to) {
     const avail = game.service.availableRecipes();
     if (!avail.length) { rep.noStock += rate; continue; }
     // capacidade por hora (grupos)
-    const avgMin = avail.reduce((a, r) => a + r.minutes, 0) / avail.length;
+    const avgSecs = avail.reduce((a, r) => a + r.secs, 0) / avail.length;
     const stoves = objectsOfKind(s, 'stove').length;
-    const cookCap = (Math.min(cooks.length, stoves) * 60 / (avgMin / avgSpeed(cooks))) / 2.6;
+    const busyStoves = Math.min(cooks.length * 2, stoves);
+    const cookCap = (busyStoves * 3600 / (avgSecs / avgSpeed(cooks) + 20)) / 2.6;
     const helpers = duty.filter((e) => e.role === 'recepcionista' || e.role === 'caixa').length;
-    const waiterCap = waiters.length * 4.5 + helpers * 1.5;
-    const tableCap = tables.length * (60 / 45);
+    const waiterCap = waiters.length * 11 + helpers * 4;
+    const tableCap = tables.length * (60 / 8);
     const cap = Math.min(cookCap, waiterCap, tableCap) * hours;
+    // louça: com lavador (ou lava-louças) tudo que sujou volta limpo
+    const washers = duty.filter((e) => e.role === 'lavador').length;
+    const machines = objectsOfKind(s, 'dishwasher').length;
+    const washCap = (washers ? washers * 500 + machines * 600 : waiters.length * 40) * hours;
+    const w = Math.min(s.dishes.dirty, washCap);
+    s.dishes.dirty -= w; s.dishes.clean += w;
+    if (machines && washers) { const cycles = w / 15; s.month.energy += cycles * COSTS.dishwasherKwh * COSTS.energyPrice; s.month.kwh += cycles * COSTS.dishwasherKwh; s.month.water += cycles * COSTS.dishwasherWater; }
+    if (w && !machines) { s.month.water += w * 0.05; for (let i = 0; i < w; i++) if (Math.random() < 0.015) { s.dishes.clean--; s.dishes.broken = (s.dishes.broken || 0) + 1; } }
+    // limpeza: o zelador dá conta da sujeira do turno
+    const janitors = duty.filter((e) => e.role === 'zelador').length;
+    if (janitors) { if (s.dirt.length) s.month.water += s.dirt.length * COSTS.waterPerClean; s.dirt = []; }
     const served = Math.min(rate, cap);
     rep.lost += Math.max(0, rate - cap);
     acc += served;
@@ -53,12 +65,14 @@ export function simulateOffline(game, from, to) {
         const list = game.service.availableRecipes();
         if (!list.length) break;
         const r = list[Math.floor(Math.random() * list.length)];
+        if (s.dishes.clean <= 0) { rep.noPlates++; break; }
         const cook = cooks[Math.floor(Math.random() * cooks.length)];
         const burn = LEVELS[cook.level].burn * ({ 1: 0.6, 2: 1, 3: 1.6 }[r.difficulty]) * (cook.specialty === r.cuisine ? 0.1 : 1);
         game.service.consume(r);
-        s.month.gas += r.minutes * COSTS.gasPerStoveMin;
+        s.month.gas += (r.secs / 60) * COSTS.gasPerStoveMin;
         if (Math.random() < burn) { rep.burned++; s.month.burned++; if (!game.service.consume(r)) continue; }
         paid += s.menu[r.id].price; eaten++;
+        s.dishes.clean--; s.dishes.dirty++;
         rep.dishes[r.id] = (rep.dishes[r.id] || 0) + 1;
         s.month.water += COSTS.waterPerDish; s.month.dishes++;
       }
@@ -72,7 +86,7 @@ export function simulateOffline(game, from, to) {
       // reputação tende à qualidade média da equipe
       const q = cooks.reduce((a, c) => a + LEVELS[c.level].quality, 0) / cooks.length;
       s.rep += (Math.min(5, q + 0.6) - s.rep) * 0.02;
-      if (Math.random() < 0.15) s.dirt.length < 8 && s.dirt.push({ x: 1 + Math.floor(Math.random() * 5), y: 2 + Math.floor(Math.random() * 4), k: 0 });
+      if (!janitors && Math.random() < 0.3 && s.dirt.length < 14) s.dirt.push({ x: 1 + Math.floor(Math.random() * 5), y: 2 + Math.floor(Math.random() * 4), k: Math.floor(Math.random() * 3) });
     }
   }
   // limpa sujeira impossível (em cima de móveis)

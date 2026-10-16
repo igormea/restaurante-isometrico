@@ -4,6 +4,7 @@ import { Events } from './events.js';
 import { local } from './clock.js';
 import { itemById } from '../config/items.js';
 import { INGREDIENTS, SUPPLIERS, recipeById } from '../config/recipes.js';
+import { PLATE_PRICE } from '../config/economy.js';
 import { EXPANSIONS } from '../config/levels.js';
 import { statusAt } from '../systems/schedule.js';
 import { accrue } from '../systems/economy.js';
@@ -50,6 +51,8 @@ export class Game {
 
   save() {
     const clean = JSON.parse(JSON.stringify(this.state, (k, v) => (k.startsWith('_') ? undefined : v)));
+    // pratos em uso na hora de salvar voltam para a pilha de limpos
+    if (this.service && clean.dishes) clean.dishes.clean += this.service.platesOut;
     clean.savedAt = Date.now();
     this.saveService.save(clean);
   }
@@ -130,6 +133,16 @@ export class Game {
     st.q = total ? (st.q * st.qty + d.q * d.qty) / total : d.q;
     st.qty = total;
     s.deliveries = s.deliveries.filter((x) => x !== d);
+  }
+
+  // ---------- louça ----------
+  buyPlates(n) {
+    const cost = n * PLATE_PRICE;
+    if (!this.spend(cost)) return false;
+    this.state.dishes.clean += n;
+    this.save();
+    this.toast(`🍽️ +${n} pratos novos.`);
+    return true;
   }
 
   // ---------- cardápio ----------

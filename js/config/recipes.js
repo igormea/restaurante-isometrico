@@ -1,7 +1,7 @@
 // Pratos que o restaurante pode ter no cardápio.
 // cuisine = culinária (casa com a especialidade do cozinheiro)
 // difficulty = 1 fácil, 2 médio, 3 difícil (aumenta a chance de queimar)
-// minutes = tempo real de preparo | price = preço sugerido (R$)
+// secs = tempo de preparo em segundos reais | price = preço sugerido (R$)
 // ing = ingredientes gastos por prato
 
 export const CUISINES = {
@@ -13,18 +13,18 @@ export const CUISINES = {
 };
 
 export const RECIPES = [
-  { id: 'baiao',     name: 'Baião de Dois',      icon: '🍛', cuisine: 'brasileira', difficulty: 1, minutes: 4,  price: 42, ing: { arroz: 1, feijao: 1, queijo: 1, carne: 1 } },
-  { id: 'picanha',   name: 'Picanha na Chapa',   icon: '🥩', cuisine: 'brasileira', difficulty: 2, minutes: 6,  price: 79, ing: { carne: 2, arroz: 1, legumes: 1 } },
-  { id: 'moqueca',   name: 'Moqueca de Peixe',   icon: '🍲', cuisine: 'brasileira', difficulty: 3, minutes: 8, price: 89, ing: { peixe: 2, coco: 1, legumes: 1, arroz: 1 } },
-  { id: 'macarrao',  name: 'Macarrão ao Sugo',   icon: '🍝', cuisine: 'italiana',   difficulty: 1, minutes: 4,  price: 38, ing: { massa: 1, tomate: 1, queijo: 1 } },
-  { id: 'pizza',     name: 'Pizza Margherita',   icon: '🍕', cuisine: 'italiana',   difficulty: 2, minutes: 6,  price: 55, ing: { farinha: 1, tomate: 1, queijo: 2 } },
-  { id: 'sushi',     name: 'Combinado de Sushi', icon: '🍣', cuisine: 'japonesa',   difficulty: 3, minutes: 7, price: 65, ing: { arroz: 1, peixe: 2, alga: 1 } },
-  { id: 'lamen',     name: 'Lámen',              icon: '🍜', cuisine: 'japonesa',   difficulty: 2, minutes: 5,  price: 45, ing: { massa: 1, carne: 1, legumes: 1, ovo: 1 } },
-  { id: 'tacos',     name: 'Tacos',              icon: '🌮', cuisine: 'mexicana',   difficulty: 1, minutes: 3,  price: 34, ing: { tortilha: 1, carne: 1, legumes: 1 } },
-  { id: 'burrito',   name: 'Burrito',            icon: '🌯', cuisine: 'mexicana',   difficulty: 2, minutes: 4,  price: 39, ing: { tortilha: 1, frango: 1, feijao: 1, queijo: 1 } },
-  { id: 'burger',    name: 'Hambúrguer',         icon: '🍔', cuisine: 'lanches',    difficulty: 1, minutes: 3,  price: 32, ing: { pao: 1, carne: 1, queijo: 1, legumes: 1 } },
-  { id: 'salada',    name: 'Salada da Casa',     icon: '🥗', cuisine: 'lanches',    difficulty: 1, minutes: 2,  price: 26, ing: { legumes: 2, queijo: 1 } },
-  { id: 'bolo',      name: 'Bolo de Chocolate',  icon: '🍰', cuisine: 'lanches',    difficulty: 2, minutes: 3,  price: 18, ing: { farinha: 1, ovo: 1, chocolate: 1 } },
+  { id: 'baiao',     name: 'Baião de Dois',      icon: '🍛', cuisine: 'brasileira', difficulty: 1, secs: 55, price: 42, ing: { arroz: 1, feijao: 1, queijo: 1, carne: 1 } },
+  { id: 'picanha',   name: 'Picanha na Chapa',   icon: '🥩', cuisine: 'brasileira', difficulty: 2, secs: 80, price: 79, ing: { carne: 2, arroz: 1, legumes: 1 } },
+  { id: 'moqueca',   name: 'Moqueca de Peixe',   icon: '🍲', cuisine: 'brasileira', difficulty: 3, secs: 110, price: 89, ing: { peixe: 2, coco: 1, legumes: 1, arroz: 1 } },
+  { id: 'macarrao',  name: 'Macarrão ao Sugo',   icon: '🍝', cuisine: 'italiana',   difficulty: 1, secs: 50, price: 38, ing: { massa: 1, tomate: 1, queijo: 1 } },
+  { id: 'pizza',     name: 'Pizza Margherita',   icon: '🍕', cuisine: 'italiana',   difficulty: 2, secs: 75, price: 55, ing: { farinha: 1, tomate: 1, queijo: 2 } },
+  { id: 'sushi',     name: 'Combinado de Sushi', icon: '🍣', cuisine: 'japonesa',   difficulty: 3, secs: 90, price: 65, ing: { arroz: 1, peixe: 2, alga: 1 } },
+  { id: 'lamen',     name: 'Lámen',              icon: '🍜', cuisine: 'japonesa',   difficulty: 2, secs: 65, price: 45, ing: { massa: 1, carne: 1, legumes: 1, ovo: 1 } },
+  { id: 'tacos',     name: 'Tacos',              icon: '🌮', cuisine: 'mexicana',   difficulty: 1, secs: 35, price: 34, ing: { tortilha: 1, carne: 1, legumes: 1 } },
+  { id: 'burrito',   name: 'Burrito',            icon: '🌯', cuisine: 'mexicana',   difficulty: 2, secs: 50, price: 39, ing: { tortilha: 1, frango: 1, feijao: 1, queijo: 1 } },
+  { id: 'burger',    name: 'Hambúrguer',         icon: '🍔', cuisine: 'lanches',    difficulty: 1, secs: 40, price: 32, ing: { pao: 1, carne: 1, queijo: 1, legumes: 1 } },
+  { id: 'salada',    name: 'Salada da Casa',     icon: '🥗', cuisine: 'lanches',    difficulty: 1, secs: 25, price: 26, ing: { legumes: 2, queijo: 1 } },
+  { id: 'bolo',      name: 'Bolo de Chocolate',  icon: '🍰', cuisine: 'lanches',    difficulty: 2, secs: 35, price: 18, ing: { farinha: 1, ovo: 1, chocolate: 1 } },
 ];
 export const recipeById = (id) => RECIPES.find((r) => r.id === id);
 

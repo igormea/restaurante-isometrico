@@ -7,7 +7,6 @@ import { screenToIso, camera } from './engine/iso.js';
 import { UI } from './ui/ui.js';
 import { ROLES, LEVELS } from './config/staff.js';
 import { CUISINES } from './config/recipes.js';
-import { COSTS } from './config/economy.js';
 
 async function boot() {
   const game = new Game(new LocalSaveService());
@@ -52,12 +51,7 @@ async function boot() {
         return;
       }
       const dirt = renderer.dirtAtWorld(w.x, w.y);
-      if (dirt && !dirt._by && !obj) {
-        game.state.dirt = game.state.dirt.filter((d) => d !== dirt);
-        game.state.month.water += COSTS.waterPerClean;
-        game.toast('🧽 Chão limpo!');
-        return;
-      }
+      if (dirt && !obj && sv.cleanDirtByOwner(dirt)) { game.toast('🧽 Chão limpo!'); return; }
       if (obj) sv.click(obj, null);
     },
   });
@@ -77,6 +71,7 @@ async function boot() {
   document.getElementById('loading').remove();
 
   if (game.pendingReport) setTimeout(() => ui.showPendingReport(), 400);
+  if (game.state._v3News) setTimeout(() => ui.toast('🆕 Chegaram a pia, a lavadora Antônia e o zelador Raimundo!'), 1500);
   let vista = false;
   try { vista = !!localStorage.getItem('dica_v2'); localStorage.setItem('dica_v2', '1'); } catch (e) { /* ignora */ }
   if (!vista) setTimeout(() => ui.toast('👋 Você é o dono. Contrate, monte o cardápio, compre ingredientes e acompanhe as finanças.'), 800);

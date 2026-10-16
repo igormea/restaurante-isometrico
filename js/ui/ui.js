@@ -5,7 +5,7 @@ import { RECIPES, CUISINES, INGREDIENTS, SUPPLIERS, recipeCost } from '../config
 import { ROLES, LEVELS, candidatesFor } from '../config/staff.js';
 import { STATES, CITIES, holidaysOf } from '../config/calendar.js';
 import { EXPANSIONS } from '../config/levels.js';
-import { COSTS } from '../config/economy.js';
+import { COSTS, PLATE_PRICE } from '../config/economy.js';
 import { charm, hygiene, stockCapacity, stockUsed, objectsOfKind } from '../core/state.js';
 import { local, WEEKDAYS, WEEKDAYS_SHORT, MONTHS, hhmm } from '../core/clock.js';
 import { statusLabel } from '../systems/schedule.js';
@@ -71,6 +71,8 @@ export class UI {
     $('#hud-rep').textContent = s.rep.toFixed(1);
     $('#hud-hyg').textContent = Math.round(hygiene(s)) + '%';
     $('#hud-charm').textContent = charm(s);
+    $('#hud-plates').textContent = `${s.dishes.clean}` + (s.dishes.dirty ? ` · ${s.dishes.dirty} sujos` : '');
+    $('#hud-plates-pill').classList.toggle('neg', s.dishes.clean < 5);
     this.updateBanner(st, lab);
   }
   updateBanner(st, lab) {
@@ -169,6 +171,7 @@ export class UI {
       sum.innerHTML = `
         <div><b>${count('cozinheiro')}</b> cozinheiro(s) para <b>${stoves}</b> fogão(ões)</div>
         <div><b>${count('garcom')}</b> garçom/garçonete · <b>${count('recepcionista')}</b> recepcionista · <b>${count('caixa')}</b> caixa</div>
+        <div><b>${count('lavador')}</b> lavador(a) · <b>${count('zelador')}</b> zelador(a)</div>
         <div>Folha de pagamento: <b>${fmtBRL0(payroll(s))}/mês</b></div>`;
       body.appendChild(sum);
       const tips = [];
@@ -177,6 +180,8 @@ export class UI {
       if (count('cozinheiro') > stoves) tips.push('Tem mais cozinheiros do que fogões: alguém vai ficar parado.');
       if (!count('recepcionista')) tips.push('Sem recepcionista: o garçom também recebe os clientes na porta, e tudo fica mais lento.');
       if (!count('caixa')) tips.push('Sem caixa: o garçom também cobra a conta.');
+      if (!count('lavador')) tips.push('Sem lavador: a louça suja acumula e os pratos limpos acabam. O garçom só lava um pouco quando falta prato.');
+      if (!count('zelador')) tips.push('Sem zelador: a sujeira fica no chão e nas mesas, a higiene cai e os clientes reclamam.');
       if (tips.length) body.appendChild(el('ul', 'tips', tips.map((t) => `<li>${t}</li>`).join('')));
       const list = el('div', 'cards');
       for (const e of s.staff) list.appendChild(this.employeeCard(e));
@@ -260,7 +265,7 @@ export class UI {
       const info = el('div', 'r-info');
       info.appendChild(el('div', 'r-name', `${r.name} <small>${CUISINES[r.cuisine].icon} ${CUISINES[r.cuisine].name}</small>`));
       const possible = Math.min(...Object.entries(r.ing).map(([k, q]) => Math.floor((s.stock[k]?.qty || 0) / q)));
-      info.appendChild(el('div', 'r-meta', `Dificuldade ${'🔥'.repeat(r.difficulty)} · ⏱️ ${r.minutes} min · estoque dá para <b>${possible}</b>`));
+      info.appendChild(el('div', 'r-meta', `Dificuldade ${'🔥'.repeat(r.difficulty)} · ⏱️ ${r.secs}s · estoque dá para <b>${possible}</b>`));
       info.appendChild(el('div', 'r-meta', `${Object.entries(r.ing).map(([k, q]) => `${INGREDIENTS[k].icon}${q}`).join(' ')} · custo ${fmtBRL(cost)}`));
       const margin = (m.price - cost) / m.price;
       info.appendChild(el('div', 'r-meta strong', `Margem ${pct(margin)} · sugerido ${fmtBRL0(r.price)}`));
@@ -318,6 +323,21 @@ export class UI {
       row.appendChild(acts);
       list.appendChild(row);
     }
+    const dsh = s.dishes;
+    const plates = el('div', 'srow');
+    plates.appendChild(el('div', 'r-icon small', '🍽️'));
+    const pinfo = el('div', 'r-info');
+    pinfo.appendChild(el('div', 'r-name', `Louça ${dsh.clean < 5 ? '<span class="warn-tag">faltando</span>' : ''}`));
+    pinfo.appendChild(el('div', 'r-meta', `<b>${dsh.clean}</b> limpos · <b>${dsh.dirty}</b> sujos na pia · <b>${g.service.platesOut}</b> em uso${dsh.broken ? ` · ${dsh.broken} quebrados até hoje` : ''}`));
+    plates.appendChild(pinfo);
+    const pb = el('div', 'buys');
+    for (const q of [10, 30]) {
+      const b = el('button', 'buy small', `+${q}<small>${fmtBRL(q * PLATE_PRICE)}</small>`);
+      b.onclick = () => { if (g.buyPlates(q)) this.openStock(); };
+      pb.appendChild(b);
+    }
+    plates.appendChild(pb);
+    body.appendChild(plates);
     if (s.deliveries.length) {
       body.appendChild(el('h3', '', '🚚 Entregas a caminho'));
       const ul = el('ul', 'tips');
@@ -575,7 +595,7 @@ export class UI {
       setTimeout(() => { armed = false; reset.textContent = 'Recomeçar do zero'; }, 4000);
     };
     body.appendChild(reset);
-    body.appendChild(el('p', 'muted', 'Protótipo v0.2 · o progresso fica salvo neste navegador.'));
+    body.appendChild(el('p', 'muted', 'Protótipo v0.3 · o progresso fica salvo neste navegador.'));
     this.openModal('⚙️ Ajustes', body);
   }
 
@@ -598,6 +618,7 @@ export class UI {
       r.lost ? `😠 Cerca de ${r.lost} clientes foram embora (faltou mesa, equipe ou comida)` : null,
       r.noCook ? `⚠️ Cerca de ${r.noCook} clientes sem atendimento: faltou cozinheiro ou garçom no turno` : null,
       r.noStock ? `📦 Cerca de ${r.noStock} clientes não comeram porque os ingredientes acabaram. Compre no Estoque!` : null,
+      r.noPlates ? `🍽️ ${r.noPlates} pratos não saíram porque faltou louça limpa` : null,
       r.holidayLost ? `🎉 Cerca de ${r.holidayLost} clientes vieram no feriado e não havia ninguém para atender` : null,
       r.delivered ? `🚚 ${r.delivered} entrega(s) de fornecedor recebida(s)` : null,
       r.months.length ? `🧾 ${r.months.length} fechamento(s) de mês: contas pagas` : null,

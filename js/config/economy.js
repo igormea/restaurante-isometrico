@@ -12,6 +12,8 @@ export const COSTS = {
   waterPerDish: 0.18,      // R$ de água por prato servido (preparo + lavagem)
   waterPerClean: 0.10,     // R$ por limpeza de mesa/chão
   taxRate: 0.06,           // imposto sobre o faturamento (Simples Nacional, faixa inicial)
+  dishwasherKwh: 1.1,      // kWh por ciclo da lava-louças
+  dishwasherWater: 0.35,   // R$ de água por ciclo
 };
 
 export const STOCK_BASE = 200;     // espaço do estoque sem geladeira extra
@@ -23,5 +25,11 @@ export const DEFAULT_SCHEDULE = {
 };
 
 // paciência dos clientes (minutos reais)
-export const PATIENCE = { door: 5, order: 6, food: 30, bill: 6 };
-export const EAT_MIN = [8, 12];
+export const PATIENCE = { door: 3, order: 3, food: 8, bill: 3 };
+export const EAT_MIN = [2, 3.5];
+
+// louça
+export const PLATE_PRICE = 9;        // R$ por prato novo
+export const START_PLATES = 30;
+export const HAND_WASH_SECS = 4;     // segundos por prato lavado à mão (lavador velocidade 100%)
+export const BREAK_CHANCE = { novato: 0.03, experiente: 0.01, chef: 0.003 }; // chance de quebrar ao lavar

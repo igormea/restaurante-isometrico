@@ -5,6 +5,8 @@ export const ROLES = {
   garcom:        { name: 'Garçom/Garçonete', icon: '🤵', desc: 'Anota pedidos, leva os pratos e limpa as mesas. Na falta de recepcionista ou caixa, cobre essas funções (mais devagar).' },
   recepcionista: { name: 'Recepcionista',   icon: '🙋', desc: 'Recebe os clientes na porta e escolhe a mesa certa para o tamanho do grupo.' },
   caixa:         { name: 'Caixa',           icon: '💵', desc: 'Fica na caixa registradora recebendo os pagamentos.' },
+  lavador:       { name: 'Lavador(a) de louça', icon: '🧽', desc: 'Lava os pratos sujos na pia. Com lava-louças, lava muito mais de uma vez.' },
+  zelador:       { name: 'Zelador(a)',      icon: '🧹', desc: 'Mantém o chão e as mesas limpos. Sem ele a higiene cai e os clientes reclamam.' },
 };
 
 export const LEVELS = {
@@ -13,7 +15,7 @@ export const LEVELS = {
   chef:       { name: 'Sênior',     burn: 0.03, quality: 4.3, speed: 1.15, salaryMult: 2.6 },
 };
 
-export const BASE_SALARY = { cozinheiro: 1900, garcom: 1650, recepcionista: 1600, caixa: 1700 };
+export const BASE_SALARY = { cozinheiro: 1900, garcom: 1650, recepcionista: 1600, caixa: 1700, lavador: 1520, zelador: 1560 };
 
 const NAMES = {
   brasileira: ['Francisca Lima', 'Raimundo Nonato', 'Antônia Sousa', 'José Wellington', 'Maria Clara', 'Cícero Alves', 'Jéssica Rocha', 'Luiz Gonzaga'],
@@ -40,7 +42,7 @@ export function candidatesFor(dateKey) {
   const r = rng(dateKey);
   const pick = (a) => a[Math.floor(r() * a.length)];
   const out = [];
-  const plan = ['cozinheiro', 'cozinheiro', 'cozinheiro', 'cozinheiro', 'garcom', 'garcom', 'recepcionista', 'caixa'];
+  const plan = ['cozinheiro', 'cozinheiro', 'cozinheiro', 'cozinheiro', 'garcom', 'garcom', 'recepcionista', 'caixa', 'lavador', 'zelador'];
   plan.forEach((role, i) => {
     const lvl = pick(['novato', 'novato', 'experiente', 'experiente', 'chef']);
     const specialty = role === 'cozinheiro' ? pick(['brasileira', 'brasileira', 'italiana', 'japonesa', 'mexicana', 'lanches']) : null;

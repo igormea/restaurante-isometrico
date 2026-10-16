@@ -5,13 +5,16 @@ Roda direto no navegador (computador ou celular), sem instalar nada.
 
 **▶️ Jogar:** https://igormea.github.io/restaurante-isometrico/
 
-## Conceito (v0.2)
+## Conceito
 
 Você é o **dono** do restaurante, sem personagem no jogo, como no SimCity. Quem trabalha é a equipe que você contrata.
 O tempo do jogo é o **tempo real**, no fuso do seu estado, com feriados nacionais, estaduais e municipais.
 No feriado ninguém vem trabalhar: se você abrir mesmo assim, atende tudo sozinho, clicando.
 
-- **Equipe:** cozinheiros (novato, experiente, sênior; com especialidade culinária), garçons, recepcionista e caixa.
+- **Equipe:** cozinheiros (novato, experiente, sênior; com especialidade culinária), garçons, recepcionista, caixa, lavador de louça e zelador.
+- **Louça:** pratos limitados; os sujos vão para a pia e o lavador lava à mão ou com lava-louças (compra na loja).
+- **Limpeza:** sujeira aparece no chão e nas mesas; o zelador limpa. Higiene baixa espanta clientes.
+- **Diálogos:** clientes e equipe conversam em balões (chegada, pedido, comida, conta, despedida).
 - **Cardápio:** você escolhe os pratos e os preços.
 - **Estoque:** ingredientes de dois fornecedores (preço × qualidade × prazo de entrega).
 - **Contas:** aluguel, salários, energia, gás, água e impostos, cobrados no dia 1º de cada mês.
@@ -20,6 +23,7 @@ No feriado ninguém vem trabalhar: se você abrir mesmo assim, atende tudo sozin
 
 ## Versões
 
+- **v0.3 — Ritmo e vida**: pratos em segundos, mais clientes, balões de diálogo, lavador e pia, lava-louças, zelador e sujeira aleatória.
 - **v0.2 — Gestão**: tempo real, feriados, equipe com fichas, chance de queimar, cardápio, estoque, contas mensais, finanças, avaliações, modo manual no feriado e simulação offline.
 - **v0.1 — Protótipo**: cozinha, clientes, garçom, moedas, níveis, loja com 5 estilos,
   pintura de piso, troca de parede, modo editar e expansões. Arte feita 100% em código.

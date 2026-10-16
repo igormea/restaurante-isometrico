@@ -31,6 +31,12 @@ export const ITEMS = [
     colors: { body: '#6d6a75', top: '#f4f2ee', trim: '#c9a35b' }, desc: 'Passe elegante (até 4 pratos).' },
   { id: 'geladeira', name: 'Geladeira Industrial', cat: 'cozinha', kind: 'fridge', price: 3200, theme: 'neutro', charm: 0,
     colors: { body: '#e6ebf0', trim: '#9aa3ad' }, desc: '+150 de espaço no estoque. Consome energia 24h.' },
+  { id: 'pia', name: 'Pia de Louça', cat: 'cozinha', kind: 'sink', price: 1500, theme: 'neutro', charm: 0,
+    colors: { body: '#c9d1d9', top: '#eef2f5', trim: '#8a96a3' }, desc: 'Onde o lavador lava a louça à mão. Os pratos sujos se acumulam aqui.' },
+  { id: 'lava_loucas', name: 'Lava-louças Compacta', cat: 'cozinha', kind: 'dishwasher', price: 6500, theme: 'neutro', charm: 0,
+    colors: { body: '#d5dbe1', trim: '#5b6370' }, capacity: 15, cycle: 90, desc: 'Lava 15 pratos a cada 1min30. O lavador só carrega e descarrega. Gasta energia e água.' },
+  { id: 'lava_loucas_ind', name: 'Lava-louças Industrial', cat: 'cozinha', kind: 'dishwasher', price: 14000, theme: 'neutro', charm: 0,
+    colors: { body: '#aeb9c4', trim: '#2b2f36' }, capacity: 30, cycle: 75, desc: 'Lava 30 pratos a cada 1min15. Para restaurantes cheios.' },
   { id: 'caixa_reg', name: 'Caixa Registradora', cat: 'cozinha', kind: 'register', price: 1200, theme: 'neutro', charm: 0,
     colors: { body: '#7a5233', top: '#e9dcc6', trim: '#3b3f47' }, desc: 'Onde os clientes pagam a conta.' },
 

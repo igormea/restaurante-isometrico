@@ -1,6 +1,6 @@
 // Monta a cena: fundo, piso, paredes, móveis, pessoas e balões de informação.
 import { TW, TH, WALL_H, camera, tileCenter, isoToWorld } from './iso.js';
-import { drawItem, drawFloorTile, drawWallSegment, drawCharacter, KIND_HEIGHT, roundRect, drawDirt, drawSmoke } from './draw.js';
+import { drawItem, drawFloorTile, drawWallSegment, drawCharacter, KIND_HEIGHT, roundRect, drawDirt, drawSmoke, drawSpeech } from './draw.js';
 import { itemById } from '../config/items.js';
 import { roomSize, doorOf, kindOf } from '../core/state.js';
 import { tableFor } from '../systems/service.js';
@@ -84,6 +84,9 @@ export class Renderer {
       drawFloorTile(ctx, x, y, c.x, c.y, itemById(st.floor[x + ',' + y] || 'piso_bege').floor);
     }
     for (const d of st.dirt) { const c = tileCenter(d.x, d.y); drawDirt(ctx, c.x, c.y, d.k); }
+    if (game.mode === 'play' && !sv.onDuty('zelador').length) {
+      for (const d of st.dirt) { const c = tileCenter(d.x, d.y); ctx.globalAlpha = 0.5 + Math.sin(t * 4) * 0.3; ctx.font = '16px serif'; ctx.textAlign = 'center'; ctx.fillText('👆', c.x + 14, c.y - 12); ctx.globalAlpha = 1; }
+    }
     { // capacho e batentes da entrada
       const c = tileCenter(door.x, door.y + 0.5);
       ctx.fillStyle = '#7a2f3a';
@@ -142,6 +145,18 @@ export class Renderer {
       for (const g of sv.groups) this.drawGroupOverlay(g, t);
     }
 
+    // balões de fala (por cima de tudo)
+    const speakers = [];
+    for (const a of sv.agents.values()) speakers.push({ ch: a.ch, sitting: false, staff: true });
+    for (const g of sv.groups) for (const m of g.members) speakers.push({ ch: m.ch, sitting: m.sitting });
+    for (const sp of speakers) {
+      const sc = sp.ch.speech;
+      if (!sc || sc.until < t || sp.ch.alpha < 0.3) continue;
+      const w = tileCenter(sp.ch.x, sp.ch.y);
+      const fade = Math.min(1, (sc.until - t) / 0.4, (t - sc.start) / 0.15);
+      drawSpeech(ctx, w.x, w.y - (sp.sitting ? 74 : 92), sc.text, fade, sp.staff ? { bg: '#fff7e6', border: '#e0b872' } : {});
+    }
+
     // textos flutuantes
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     for (const f of game.floats) {
@@ -160,7 +175,7 @@ export class Renderer {
   drawPerson(ch, t, opt) {
     const w = tileCenter(ch.x, ch.y);
     this.ctx.globalAlpha = ch.alpha;
-    drawCharacter(this.ctx, w.x, w.y, ch.look, t + ch.x * 3, { walking: ch.walking, sitting: opt.sitting, flip: ch.flip, carry: ch.carry, mood: opt.mood });
+    drawCharacter(this.ctx, w.x, w.y, ch.look, t + ch.x * 3, { walking: ch.walking, sitting: opt.sitting, flip: ch.flip, carry: ch.carry, tool: ch.tool, mood: opt.mood });
     this.ctx.globalAlpha = 1;
   }
 
@@ -200,7 +215,9 @@ export class Renderer {
     const k = item.kind;
     if (k === 'stove') opt.stove = { state: o.data._order && o.data._start != null ? 'cooking' : 'idle' };
     if (k === 'counter') opt.plates = (o.data._plates || []).map((p) => p.recipe.icon);
-    if (k === 'table') { opt.dishes = tableDishes.get(o.uid); opt.dirty = o.data._dirty; }
+    if (k === 'table') { opt.dishes = tableDishes.get(o.uid); opt.dirty = o.data._dirty; opt.dirtyN = o.data._dirtyN; opt.stain = o.data._stain; }
+    if (k === 'sink') { opt.pile = this.game.state.dishes.dirty; opt.washing = o.data._washing; }
+    if (k === 'dishwasher') opt.running = !!o.data._load && o.data._end > this.game.t;
     if (k === 'chair') {
       const tf = tableFor(this.game.state, o);
       opt.facing = tf ? { dx: tf.dx, dy: tf.dy } : { dx: 1, dy: 0 };
@@ -257,8 +274,26 @@ export class Renderer {
     if (item.kind === 'counter' && (o.data._plates || []).length && !sv.onDuty('garcom').length) {
       this.bubble(c.x, c.y - 90, '🛎️', { r: 16, pulse: true, hand: true, badge: o.data._plates.length });
     }
-    if (item.kind === 'table' && o.data._dirty && !o.data._clearBy && !sv.onDuty('garcom').length) {
+    if (item.kind === 'table' && o.data._dirty && !o.data._clearBy && !o.data._group && !sv.onDuty('garcom').length) {
+      this.bubble(c.x, c.y - 70, '🍽️', { r: 14, hand: true, badge: o.data._dirtyN || null });
+    } else if (item.kind === 'table' && o.data._stain && !o.data._wipeBy && !o.data._group && !sv.onDuty('zelador').length) {
       this.bubble(c.x, c.y - 70, '🧽', { r: 14, hand: true });
+    }
+    if (item.kind === 'sink') {
+      const dirty = g.state.dishes.dirty;
+      if (dirty > 0) {
+        const noWasher = !sv.onDuty('lavador').length;
+        this.bubble(c.x, c.y - 100, '🧼', { r: 15, badge: dirty > 99 ? '99+' : dirty, hand: noWasher, pulse: noWasher && dirty > 10, bg: dirty > 20 ? '#ffe3e3' : '#fffaf0' });
+      }
+    }
+    if (item.kind === 'dishwasher' && o.data._load) {
+      const left = o.data._end - g.t;
+      if (left > 0) {
+        const cyc = itemById(o.item).cycle, p = 1 - left / cyc, w = 56, h = 10, top = c.y - 95;
+        ctx.fillStyle = 'rgba(60,35,15,0.55)'; roundRect(ctx, c.x - w / 2 - 2, top - 2, w + 4, h + 4, 6);
+        ctx.fillStyle = '#e6f4fb'; roundRect(ctx, c.x - w / 2, top, w, h, 5);
+        ctx.fillStyle = '#4fb3d9'; roundRect(ctx, c.x - w / 2, top, Math.max(6, w * p), h, 5);
+      } else this.bubble(c.x, c.y - 95, '✨', { r: 15, pulse: true, badge: o.data._load, hand: !sv.onDuty('lavador').length });
     }
   }
 
@@ -266,6 +301,7 @@ export class Renderer {
     const sv = this.game.service;
     const lead = g.members[0];
     if (!lead) return;
+    if (g.members.some((m) => m.ch.speech && m.ch.speech.until > t)) return;
     const w = tileCenter(lead.ch.x, lead.ch.y);
     const ring = (secs, pmin) => 1 - Math.min(1, secs / (pmin * 60));
     const col = (r) => (r > 0.5 ? '#2a9d8f' : r > 0.25 ? '#f4a261' : '#e63946');

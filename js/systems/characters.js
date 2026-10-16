@@ -13,6 +13,14 @@ export class Character {
     this.carry = null;
     this.alpha = 1;
     this.label = null;
+    this.speech = null;   // { text, until } balão de fala
+    this.tool = null;     // ferramenta na mão (ex.: vassoura)
+  }
+  // fala uma frase por alguns segundos (now = relógio de animação do jogo)
+  say(text, now, secs) {
+    if (!text) return;
+    const dur = secs || Math.min(5, 2.2 + text.length * 0.045);
+    this.speech = { text, until: now + dur, start: now };
   }
   get walking() { return this.path.length > 0; }
 
@@ -65,6 +73,8 @@ export function staffLook(emp) {
     case 'garcom': return { ...base, shirt: '#2f3e46', pants: '#1f1f24', apron: '#f6f1e3', bow: '#d1495b' };
     case 'recepcionista': return { ...base, shirt: '#7a2f3a', pants: '#1f1f24', bow: '#e9c46a' };
     case 'caixa': return { ...base, shirt: '#2a9d8f', pants: '#264653', apron: '#e9f5f2' };
+    case 'lavador': return { ...base, shirt: '#5b8fb9', pants: '#2f3e46', apron: '#cfe3f1', gloves: '#f2c94c' };
+    case 'zelador': return { ...base, shirt: '#e9a23b', pants: '#4a5a6a', hat: 'cap', capColor: '#3d5a80' };
     default: return { ...base, shirt: '#888', pants: '#333' };
   }
 }
